@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"os"
 
 	"github.com/Nesio-app/Nesio_go/internal/middleware"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
@@ -36,7 +37,10 @@ func (s *Server) registerRoutes() {
 		if err := s.store.DB.PingContext(c.Request().Context()); err != nil {
 			return c.JSON(503, map[string]string{"status": "unhealthy", "db": err.Error()})
 		}
-		return c.JSON(200, map[string]string{"status": "ok"})
+		return c.JSON(200, map[string]string{
+			"status":   "ok",
+			"revision": os.Getenv("RAILWAY_GIT_COMMIT_SHA"),
+		})
 	})
 	s.e.POST("/api/v1/auth/register", s.handleRegister)
 	s.e.POST("/api/v1/auth/login", s.handleLogin)
