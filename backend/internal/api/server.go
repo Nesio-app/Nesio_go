@@ -22,6 +22,7 @@ func NewServer(store *storage.Store) *Server {
 	e.Use(echomiddleware.CORS())
 
 	s := &Server{e: e, store: store}
+	e.Use(middleware.RateLimit(store.RDB))
 	s.registerRoutes()
 	return s
 }
@@ -53,6 +54,7 @@ func (s *Server) registerRoutes() {
 	// Chat
 	api.POST("/chat", s.handleChat)
 	api.GET("/chat/history", s.handleChatHistory)
+	api.GET("/events", s.handleEvents)
 
 	// Connectors
 	api.GET("/connectors", s.handleListConnectors)

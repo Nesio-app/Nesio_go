@@ -74,7 +74,7 @@ func selectTier(req ChatRequest) string {
 	if req.RequiresReasoning || len(req.Message) > 200 {
 		return "deep"
 	}
-	if len(req.Message) < 50 {
+	if len(req.Message) < 20 {
 		return "quick"
 	}
 	return "standard"

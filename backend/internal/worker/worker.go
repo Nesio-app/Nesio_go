@@ -2,46 +2,88 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"log"
-	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
+	"github.com/hibiken/asynq"
 )
+
+const taskDailyMaintenance = "maintenance:daily"
+
+type maintenancePayload struct{}
 
 type Worker struct {
 	store  *storage.Store
 	ctx    context.Context
 	cancel context.CancelFunc
+	client *asynq.Client
+	server *asynq.Server
+	sched  *asynq.Scheduler
 }
 
 func New(store *storage.Store) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Worker{store: store, ctx: ctx, cancel: cancel}
+	redisAddr := store.RDB.Options().Addr
+	server := asynq.NewServer(
+		asynq.RedisClientOpt{Addr: redisAddr},
+		asynq.Config{
+			Concurrency: 5,
+		},
+	)
+	sched := asynq.NewScheduler(
+		asynq.RedisClientOpt{Addr: redisAddr},
+		&asynq.SchedulerOpts{},
+	)
+	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	return &Worker{store: store, ctx: ctx, cancel: cancel, client: client, server: server, sched: sched}
 }
 
 func (w *Worker) Start() {
-	log.Println("Worker started")
+	log.Println("Worker started with Asynq")
 
-	// Daily cleanup ticker
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
+	mux := asynq.NewServeMux()
+	mux.HandleFunc(taskDailyMaintenance, func(ctx context.Context, task *asynq.Task) error {
+		return w.runDailyMaintenance(ctx, task)
+	})
 
-	for {
-		select {
-		case <-w.ctx.Done():
-			return
-		case <-ticker.C:
-			w.runDailyCleanup()
+	payload, _ := json.Marshal(maintenancePayload{})
+	if _, err := w.sched.Register("@every 1h", asynq.NewTask(taskDailyMaintenance, payload)); err != nil {
+		log.Printf("register scheduler error: %v", err)
+	}
+
+	go func() {
+		if err := w.sched.Run(); err != nil {
+			log.Printf("scheduler stopped: %v", err)
 		}
+	}()
+
+	if _, err := w.client.EnqueueContext(w.ctx, asynq.NewTask(taskDailyMaintenance, payload)); err != nil {
+		log.Printf("enqueue initial maintenance error: %v", err)
+	}
+
+	if err := w.server.Run(mux); err != nil {
+		log.Printf("worker server stopped: %v", err)
 	}
 }
 
 func (w *Worker) Stop() {
 	w.cancel()
+	if w.sched != nil {
+		w.sched.Shutdown()
+	}
+	if w.server != nil {
+		w.server.Shutdown()
+	}
+	if w.client != nil {
+		if err := w.client.Close(); err != nil {
+			log.Printf("worker client close error: %v", err)
+		}
+	}
 }
 
-func (w *Worker) runDailyCleanup() {
+func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) error {
 	// Move 7-day old active tasks without due_date to 'later'
 	_, err := w.store.DB.Exec(`
 		UPDATE life_nodes 
@@ -52,6 +94,7 @@ func (w *Worker) runDailyCleanup() {
 	`)
 	if err != nil {
 		log.Printf("cleanup later error: %v", err)
+		return err
 	}
 
 	// Archive 30-day old 'later' tasks
@@ -63,11 +106,14 @@ func (w *Worker) runDailyCleanup() {
 	`)
 	if err != nil {
 		log.Printf("cleanup archive error: %v", err)
+		return err
 	}
 
-	if err := connector.SyncAllConnectors(w.ctx, w.store.DB); err != nil {
+	if err := connector.SyncAllConnectorsWithStore(ctx, w.store); err != nil {
 		log.Printf("connector sync error: %v", err)
+		return err
 	}
 
-	log.Println("Daily cleanup and connector sync completed")
+	log.Printf("Daily cleanup and connector sync completed: %s", task.Type())
+	return nil
 }

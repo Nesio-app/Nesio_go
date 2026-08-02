@@ -39,7 +39,7 @@ func (s *Server) handleCreateSignal(c echo.Context) error {
 		}
 	}
 
-	processor := signal.NewProcessor(s.store.DB)
+	processor := signal.NewProcessor(s.store)
 	card, err := processor.Process(context.Background(), userID, signalData)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())

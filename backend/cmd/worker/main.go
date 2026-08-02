@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 	"github.com/Nesio-app/Nesio_go/internal/worker"
 )
@@ -20,6 +21,9 @@ func main() {
 		log.Fatalf("failed to init storage: %v", err)
 	}
 	defer store.Close()
+	if err := connector.MigrateLegacyCredentials(store); err != nil {
+		log.Fatalf("failed to migrate legacy connector credentials: %v", err)
+	}
 
 	w := worker.New(store)
 	go w.Start()

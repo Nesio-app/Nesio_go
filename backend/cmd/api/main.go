@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/api"
+	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 )
 
@@ -24,6 +25,9 @@ func main() {
 
 	if err := store.Migrate(); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
+	}
+	if err := connector.MigrateLegacyCredentials(store); err != nil {
+		log.Fatalf("failed to migrate legacy connector credentials: %v", err)
 	}
 
 	server := api.NewServer(store)

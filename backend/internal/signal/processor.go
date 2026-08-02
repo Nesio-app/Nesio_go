@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/models"
+	"github.com/Nesio-app/Nesio_go/internal/storage"
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 )
 
 type Processor struct {
-	DB *sqlx.DB
+	store *storage.Store
 }
 
 type aiCardResponse struct {
@@ -47,8 +47,8 @@ type aiResponse struct {
 	} `json:"card,omitempty"`
 }
 
-func NewProcessor(db *sqlx.DB) *Processor {
-	return &Processor{DB: db}
+func NewProcessor(store *storage.Store) *Processor {
+	return &Processor{store: store}
 }
 
 func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models.Signal) (*models.TodayCard, error) {
@@ -56,14 +56,14 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 
 	// Check muted
 	var muted bool
-	err := p.DB.Get(&muted, "SELECT EXISTS(SELECT 1 FROM fingerprints WHERE user_id = $1 AND hash = $2 AND is_muted = true)", userID, fp)
+	err := p.store.DB.Get(&muted, "SELECT EXISTS(SELECT 1 FROM fingerprints WHERE user_id = $1 AND hash = $2 AND is_muted = true)", userID, fp)
 	if err == nil && muted {
 		return nil, fmt.Errorf("signal muted")
 	}
 
 	// Check dismissed today
 	var dismissed bool
-	err = p.DB.Get(&dismissed, "SELECT EXISTS(SELECT 1 FROM fingerprints WHERE user_id = $1 AND hash = $2 AND dismissed_at > $3)", userID, fp, time.Now().Add(-24*time.Hour))
+	err = p.store.DB.Get(&dismissed, "SELECT EXISTS(SELECT 1 FROM fingerprints WHERE user_id = $1 AND hash = $2 AND dismissed_at > $3)", userID, fp, time.Now().Add(-24*time.Hour))
 	if err == nil && dismissed {
 		return nil, fmt.Errorf("signal dismissed today")
 	}
@@ -72,7 +72,7 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 
 	// Check daily quota (max 50 cards/day)
 	var count int
-	err = p.DB.Get(&count, "SELECT COUNT(*) FROM today_cards WHERE user_id = $1 AND local_day = $2", userID, localDay)
+	err = p.store.DB.Get(&count, "SELECT COUNT(*) FROM today_cards WHERE user_id = $1 AND local_day = $2", userID, localDay)
 	if err == nil && count >= 50 {
 		return nil, fmt.Errorf("daily quota exceeded")
 	}
@@ -105,7 +105,7 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 	}
 
 	// Insert card
-	_, err = p.DB.NamedExec(`
+	_, err = p.store.DB.NamedExec(`
 		INSERT INTO today_cards (user_id, local_day, slot, title, body, severity, fingerprints)
 		VALUES (:user_id, :local_day, :slot, :title, :body, :severity, :fingerprints)
 	`, card)
@@ -114,18 +114,22 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 	}
 
 	// Record fingerprint
-	_, _ = p.DB.Exec(`
+	_, _ = p.store.DB.Exec(`
 		INSERT INTO fingerprints (user_id, hash, source, created_at)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (user_id, hash) DO NOTHING
 	`, userID, fp, signal.Source, time.Now().UTC())
+
+	if card.Severity >= 3 {
+		_ = p.publishUrgentCard(ctx, userID, card)
+	}
 
 	return card, nil
 }
 
 func (p *Processor) getUserLocalDay(userID uuid.UUID) string {
 	var timezone string
-	err := p.DB.Get(&timezone, "SELECT timezone FROM users WHERE id = $1", userID)
+	err := p.store.DB.Get(&timezone, "SELECT timezone FROM users WHERE id = $1", userID)
 	if err != nil || timezone == "" {
 		timezone = "Asia/Shanghai"
 	}
@@ -134,6 +138,21 @@ func (p *Processor) getUserLocalDay(userID uuid.UUID) string {
 		loc = time.FixedZone("UTC", 0)
 	}
 	return time.Now().In(loc).Format("2006-01-02")
+}
+
+func (p *Processor) publishUrgentCard(ctx context.Context, userID uuid.UUID, card *models.TodayCard) error {
+	payload, err := json.Marshal(map[string]any{
+		"event": "today_card",
+		"card":  card,
+	})
+	if err != nil {
+		return err
+	}
+	return p.store.RDB.Publish(ctx, urgentChannel(userID), payload).Err()
+}
+
+func urgentChannel(userID uuid.UUID) string {
+	return "nesio:events:" + userID.String()
 }
 
 func fingerprint(signal models.Signal) string {

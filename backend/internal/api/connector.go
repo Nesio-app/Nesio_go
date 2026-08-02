@@ -174,7 +174,7 @@ func (s *Server) handleSyncConnector(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusForbidden, "not authorized")
 	}
 
-	if err := connector.SyncConnector(c.Request().Context(), s.store.DB, id); err != nil {
+	if err := connector.SyncConnector(c.Request().Context(), s.store, id); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
