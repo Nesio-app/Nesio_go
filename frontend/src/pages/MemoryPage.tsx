@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   IconSearch, IconBookmark, IconBox, IconFolder,
   IconUser, IconFileText, IconCalendar, IconArrowLeft
 } from '../icons'
+import { memories } from '../api/client'
 
 const tags = [
   { name: '全部', count: 3318, active: true },
@@ -23,9 +25,30 @@ interface Props {
   onBack: () => void
 }
 
+interface MemoryItem {
+  id: string
+  title: string
+  body?: string
+  tags: string[]
+}
+
 export default function MemoryPage({ onBack }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
+  const { data } = useQuery({
+    queryKey: ['memories'],
+    queryFn: async () => {
+      const response = await memories.list()
+      return response.data as MemoryItem[]
+    },
+  })
+
+  const memoryItems = (data ?? []).filter((item) => {
+    if (!query.trim()) {
+      return true
+    }
+    return `${item.title} ${item.body ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())
+  })
 
   return (
     <div className="px-5 pt-6 pb-4 space-y-5">
@@ -72,7 +95,7 @@ export default function MemoryPage({ onBack }: Props) {
       {/* All Memories */}
       <div>
         <div className="text-base font-bold text-nesio-ink mb-3">
-          全部记忆 · 3318 条 · 可搜
+          全部记忆 · {memoryItems.length} 条 · 可搜
         </div>
 
         {/* Tags */}
@@ -108,15 +131,37 @@ export default function MemoryPage({ onBack }: Props) {
         </button>
 
         {/* Source Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          {sources.map((s) => (
-            <button key={s.name} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-card active:scale-[0.98] transition">
-              <div className="w-10 h-10 rounded-xl bg-nesio-accentSoft flex items-center justify-center">
-                <s.icon className="w-5 h-5 text-nesio-accent" />
-              </div>
-              <span className="text-base font-medium text-nesio-ink">{s.name}</span>
-            </button>
+        <div className="space-y-3">
+          {memoryItems.slice(0, 8).map((item) => (
+            <div key={item.id} className="bg-white rounded-2xl p-4 shadow-card">
+              <div className="text-base font-medium text-nesio-ink">{item.title}</div>
+              {item.body && <div className="text-sm text-nesio-muted mt-1">{item.body}</div>}
+              {item.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {item.tags.map((tag) => (
+                    <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg text-xs text-nesio-muted">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
+          {memoryItems.length === 0 && (
+            <div className="text-sm text-nesio-muted">还没有记忆数据，先通过聊天或信号生成内容。</div>
+          )}
+          {memoryItems.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {sources.map((s) => (
+                <button key={s.name} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-card active:scale-[0.98] transition">
+                  <div className="w-10 h-10 rounded-xl bg-nesio-accentSoft flex items-center justify-center">
+                    <s.icon className="w-5 h-5 text-nesio-accent" />
+                  </div>
+                  <span className="text-base font-medium text-nesio-ink">{s.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

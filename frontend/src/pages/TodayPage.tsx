@@ -1,7 +1,22 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   IconCloud, IconMic, IconPlus, IconX
 } from '../icons'
+import { today } from '../api/client'
+
+interface TodayCard {
+  id: string
+  title: string
+  body?: string
+  severity: number
+  slot: string
+}
+
+interface TodayResponse {
+  cards: TodayCard[]
+  local_day: string
+}
 
 interface Props {
   onMemory?: () => void
@@ -15,6 +30,16 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   void onSettings
   void onChat
   const [feeling, setFeeling] = useState('')
+  const { data, isLoading } = useQuery<TodayResponse>({
+    queryKey: ['today-cards'],
+    queryFn: async () => {
+      const response = await today.get()
+      return response.data as TodayResponse
+    },
+  })
+
+  const cards = data?.cards ?? []
+  const primaryCard = cards[0]
 
   return (
     <div className="px-5 pt-6 pb-4 space-y-5">
@@ -48,7 +73,7 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
       {/* Greeting */}
       <div>
         <h1 className="text-[26px] font-bold leading-snug text-nesio-ink">
-          婧,晚上好。今天的 468 条都收好了,可以放心把今天放下了。
+          婧,晚上好。今天有 {cards.length} 条待处理内容，先看最重要的一条。
         </h1>
       </div>
 
@@ -61,8 +86,10 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
           </svg>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-base font-medium text-nesio-ink">今天这一段</div>
-          <div className="text-sm text-nesio-muted truncate">今天看过了 · 想再读一...</div>
+          <div className="text-base font-medium text-nesio-ink">{primaryCard?.title ?? '今天这一段'}</div>
+          <div className="text-sm text-nesio-muted truncate">
+            {isLoading ? '正在同步今天卡片...' : primaryCard?.body ?? `本地日历日 ${data?.local_day ?? '--'}`}
+          </div>
         </div>
         <svg className="w-5 h-5 text-nesio-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 18l6-6-6-6"/>
@@ -119,25 +146,27 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
           </div>
         </div>
 
-        {/* Tomorrow */}
-        <div className="flex gap-3">
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-8 h-8 rounded-full border-2 border-nesio-accent flex items-center justify-center">
-              <svg className="w-4 h-4 text-nesio-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-              </svg>
+        {cards.slice(1, 4).map((card) => (
+          <div key={card.id} className="flex gap-3">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-8 h-8 rounded-full border-2 border-nesio-accent flex items-center justify-center">
+                <svg className="w-4 h-4 text-nesio-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                </svg>
+              </div>
+            </div>
+            <div className="flex-1 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm text-nesio-accent font-medium">{card.slot} · 严重度 {card.severity}</div>
+                <div className="text-lg font-medium text-nesio-ink mt-0.5">{card.title}</div>
+                {card.body && <div className="text-sm text-nesio-muted mt-1">{card.body}</div>}
+              </div>
+              <button className="w-6 h-6 rounded-full bg-nesio-icon-bg flex items-center justify-center text-nesio-muted active:scale-90 transition">
+                <IconX className="w-3 h-3" />
+              </button>
             </div>
           </div>
-          <div className="flex-1 flex items-start justify-between">
-            <div>
-              <div className="text-sm text-nesio-accent font-medium">明天 · 20:15</div>
-              <div className="text-lg font-medium text-nesio-ink mt-0.5">咨询</div>
-            </div>
-            <button className="w-6 h-6 rounded-full bg-nesio-icon-bg flex items-center justify-center text-nesio-muted active:scale-90 transition">
-              <IconX className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   )

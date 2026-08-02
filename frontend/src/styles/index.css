@@ -14,9 +14,48 @@
     --nesio-border: #E8E4E0;
     --nesio-icon-bg: #F5F0EC;
   }
+
+  :root[data-palette='ocean'] {
+    --nesio-bg: #edf4f7;
+    --nesio-card: #ffffff;
+    --nesio-ink: #203642;
+    --nesio-muted: #6f8793;
+    --nesio-accent: #4e8ea2;
+    --nesio-accent-light: #c9dfe6;
+    --nesio-accent-soft: #dfeff3;
+    --nesio-border: #d8e6ea;
+    --nesio-icon-bg: #e4eff2;
+  }
+
+  :root[data-palette='forest'] {
+    --nesio-bg: #eff4ed;
+    --nesio-card: #ffffff;
+    --nesio-ink: #283428;
+    --nesio-muted: #71806f;
+    --nesio-accent: #5f8a63;
+    --nesio-accent-light: #d7e6d8;
+    --nesio-accent-soft: #e7f1e8;
+    --nesio-border: #dde7dc;
+    --nesio-icon-bg: #eef4ed;
+  }
+
+  :root[data-theme='dark'] {
+    --nesio-bg: #161616;
+    --nesio-card: #222222;
+    --nesio-ink: #f1ece6;
+    --nesio-muted: #b0aaa4;
+    --nesio-accent: #d29d93;
+    --nesio-accent-light: #6e514c;
+    --nesio-accent-soft: #2d2321;
+    --nesio-border: #383331;
+    --nesio-icon-bg: #2a2624;
+  }
+
   body {
     @apply bg-nesio-bg text-nesio-ink font-sans antialiased;
     -webkit-tap-highlight-color: transparent;
+    transition: background-color 220ms ease, color 220ms ease;
+    background-image: radial-gradient(circle at top, color-mix(in srgb, var(--nesio-accent) 18%, transparent), transparent 35%);
   }
 }
 
@@ -26,5 +65,20 @@
   }
   .nesio-icon-btn {
     @apply flex items-center justify-center rounded-2xl bg-nesio-icon-bg transition active:scale-95;
+  }
+
+  .page-shell {
+    animation: page-enter 240ms ease;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

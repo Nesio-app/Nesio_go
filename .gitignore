@@ -25,6 +25,9 @@ __pycache__/
 .idea/
 *.swp
 *.swo
+frontend/test-results/
+frontend/playwright-report/
+backend/worker
 
 # Mac
 .DS_Store

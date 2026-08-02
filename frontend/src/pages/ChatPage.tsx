@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { IconArrowLeft, IconClock, IconMic, IconPlus } from '../icons'
+import { chat } from '../api/client'
 
 interface Props {
   onBack: () => void
@@ -13,36 +15,57 @@ interface Message {
 }
 
 export default function ChatPage({ onBack }: Props) {
-  const [messages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: `1. NC Leap Alumni Ice Cream Social with Fidterns! (在 Creekside)
-2. Wash Dish
-3. FAB Sprint Planning
-4. Go/No-Go PROD | ADE.2...`,
+  const [messages, setMessages] = useState<Message[]>([])
+  const [draft, setDraft] = useState('')
+
+  const historyQuery = useQuery({
+    queryKey: ['chat-history'],
+    queryFn: async () => {
+      const response = await chat.history()
+      return response.data as Array<{ id: string; role: 'user' | 'assistant'; content: string }>
     },
-    {
-      id: '2',
-      role: 'user',
-      content: '你也',
+  })
+
+  useEffect(() => {
+    if (historyQuery.data) {
+      setMessages([...historyQuery.data].reverse())
+    }
+  }, [historyQuery.data])
+
+  const sendMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const response = await chat.send(message)
+      return response.data as { content: string }
     },
-    {
-      id: '3',
-      role: 'assistant',
-      content: '我记得你之前提到过，你觉得"着急是一种非常大的负能量，越是急性...',
-      memories: [
-        { icon: '📅', title: 'Wash Dish' },
-        { icon: '📅', title: 'FAB Sprint Planning' },
-        { icon: '📅', title: 'Go/No-Go PROD | ADE.2...' },
-      ],
+    onSuccess: (result, message) => {
+      setMessages((current) => [
+        ...current,
+        { id: `user-${Date.now()}`, role: 'user', content: message },
+        { id: `assistant-${Date.now()}`, role: 'assistant', content: result.content },
+      ])
+      setDraft('')
     },
-  ])
+    onError: (_error, message) => {
+      setMessages((current) => [
+        ...current,
+        { id: `user-${Date.now()}`, role: 'user', content: message },
+        { id: `assistant-${Date.now()}`, role: 'assistant', content: '当前离线，这条消息已加入发送队列，网络恢复后会自动重试。' },
+      ])
+      setDraft('')
+    },
+  })
 
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const submit = () => {
+    if (!draft.trim() || sendMutation.isPending) {
+      return
+    }
+    sendMutation.mutate(draft.trim())
+  }
 
   return (
     <div className="h-full flex flex-col bg-nesio-bg">
@@ -62,6 +85,9 @@ export default function ChatPage({ onBack }: Props) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        {historyQuery.isLoading && messages.length === 0 && (
+          <div className="text-sm text-nesio-muted">正在加载对话...</div>
+        )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${msg.role === 'user' ? 'bg-nesio-accent text-white rounded-2xl rounded-tr-sm px-4 py-2.5' : 'space-y-3'}`}>
@@ -103,11 +129,18 @@ export default function ChatPage({ onBack }: Props) {
           <div className="flex-1 bg-white rounded-full px-4 py-2.5 shadow-card flex items-center">
             <input
               type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  submit()
+                }
+              }}
               placeholder="问一问..."
               className="flex-1 bg-transparent outline-none text-sm text-nesio-ink placeholder:text-nesio-muted"
             />
           </div>
-          <button className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-nesio-muted active:scale-95 transition">
+          <button onClick={submit} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-nesio-muted active:scale-95 transition">
             <IconPlus className="w-5 h-5" />
           </button>
         </div>

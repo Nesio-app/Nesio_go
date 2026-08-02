@@ -13,9 +13,13 @@ const menuItems = [
 
 interface Props {
   onBack: () => void
+  themeMode: 'light' | 'dark'
+  palette: 'dawn' | 'ocean' | 'forest'
+  onThemeChange: (mode: 'light' | 'dark') => void
+  onPaletteChange: (palette: 'dawn' | 'ocean' | 'forest') => void
 }
 
-export default function SettingsPage({ onBack }: Props) {
+export default function SettingsPage({ onBack, themeMode, palette, onThemeChange, onPaletteChange }: Props) {
   return (
     <div className="px-5 pt-6 pb-4 space-y-6">
       {/* Header */}
@@ -46,6 +50,41 @@ export default function SettingsPage({ onBack }: Props) {
         >
           返回今天
         </button>
+      </div>
+
+      <div className="nesio-card p-4 space-y-4">
+        <div>
+          <div className="text-sm text-nesio-muted mb-2">主题模式</div>
+          <div className="flex gap-2">
+            {(['light', 'dark'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => onThemeChange(mode)}
+                className={`px-4 py-2 rounded-full border transition ${themeMode === mode ? 'bg-nesio-accent text-white border-nesio-accent' : 'border-nesio-border text-nesio-ink'}`}
+              >
+                {mode === 'light' ? '浅色' : '深色'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-sm text-nesio-muted mb-2">配色</div>
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { key: 'dawn', label: '晨雾' },
+              { key: 'ocean', label: '海盐' },
+              { key: 'forest', label: '林地' },
+            ] as const).map((item) => (
+              <button
+                key={item.key}
+                onClick={() => onPaletteChange(item.key)}
+                className={`px-4 py-2 rounded-full border transition ${palette === item.key ? 'bg-nesio-accent text-white border-nesio-accent' : 'border-nesio-border text-nesio-ink'}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Menu Items */}

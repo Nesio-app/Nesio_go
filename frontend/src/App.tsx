@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import TabBar from './components/TabBar'
 import TodayPage from './pages/TodayPage'
 import ChatPage from './pages/ChatPage'
@@ -7,10 +7,21 @@ import SettingsPage from './pages/SettingsPage'
 import DomainsPage from './pages/DomainsPage'
 
 type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains'
+type ThemeMode = 'light' | 'dark'
+type Palette = 'dawn' | 'ocean' | 'forest'
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [prevTab, setPrevTab] = useState<Tab>('today')
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem('nesio-theme-mode') as ThemeMode) || 'light')
+  const [palette, setPalette] = useState<Palette>(() => (localStorage.getItem('nesio-palette') as Palette) || 'dawn')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = themeMode
+    document.documentElement.dataset.palette = palette
+    localStorage.setItem('nesio-theme-mode', themeMode)
+    localStorage.setItem('nesio-palette', palette)
+  }, [themeMode, palette])
 
   const navigate = (t: Tab) => {
     setPrevTab(tab)
@@ -26,7 +37,7 @@ export default function App() {
 
   return (
     <div className="h-screen w-full max-w-md mx-auto bg-nesio-bg flex flex-col overflow-hidden relative">
-      <main className="flex-1 overflow-y-auto scrollbar-hide">
+      <main key={tab} className="page-shell flex-1 overflow-y-auto scrollbar-hide">
         {tab === 'today' && (
           <TodayPage
             onMemory={() => navigate('memory')}
@@ -36,7 +47,15 @@ export default function App() {
         )}
         {tab === 'chat' && <ChatPage onBack={goBack} />}
         {tab === 'memory' && <MemoryPage onBack={() => navigate('today')} />}
-        {tab === 'settings' && <SettingsPage onBack={goBack} />}
+        {tab === 'settings' && (
+          <SettingsPage
+            onBack={goBack}
+            themeMode={themeMode}
+            palette={palette}
+            onThemeChange={setThemeMode}
+            onPaletteChange={setPalette}
+          />
+        )}
         {tab === 'domains' && <DomainsPage />}
       </main>
       {showTabBar && (

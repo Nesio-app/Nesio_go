@@ -6,16 +6,16 @@ export default {
     extend: {
       colors: {
         nesio: {
-          bg: '#F2F0ED',
-          card: '#FFFFFF',
-          ink: '#2D2D2D',
-          muted: '#8A8A8A',
-          accent: '#B87A72',
-          accentLight: '#E8D5D1',
-          accentSoft: '#F5EBE8',
-          border: '#E8E4E0',
-          iconBg: '#F5F0EC',
-          tabBar: '#FFFFFF',
+          bg: 'var(--nesio-bg)',
+          card: 'var(--nesio-card)',
+          ink: 'var(--nesio-ink)',
+          muted: 'var(--nesio-muted)',
+          accent: 'var(--nesio-accent)',
+          accentLight: 'var(--nesio-accent-light)',
+          accentSoft: 'var(--nesio-accent-soft)',
+          border: 'var(--nesio-border)',
+          iconBg: 'var(--nesio-icon-bg)',
+          tabBar: 'var(--nesio-card)',
         }
       },
       fontFamily: {
