@@ -1,8 +1,10 @@
 import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { enqueueWriteRequest } from './offlineQueue'
 
+const apiOrigin = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: `${apiOrigin}/api/v1`,
   headers: { 'Content-Type': 'application/json' }
 })
 
