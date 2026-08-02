@@ -31,8 +31,12 @@ func main() {
 	}
 
 	server := api.NewServer(store)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 	go func() {
-		if err := server.Start(":8080"); err != nil {
+		if err := server.Start(":" + port); err != nil {
 			log.Printf("server stopped: %v", err)
 		}
 	}()
