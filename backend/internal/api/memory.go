@@ -7,6 +7,7 @@ import (
 	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 )
 
 type CreateMemoryRequest struct {
@@ -42,8 +43,8 @@ func (s *Server) handleCreateMemory(c echo.Context) error {
 		Type:   "memory",
 		Title:  req.Title,
 		Status: "active",
-		Tags:   req.Tags,
-		Attributes: map[string]any{"source_text": req.Body},
+		Tags:   pq.StringArray(req.Tags),
+		Attributes: models.JSONMap{"source_text": req.Body},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
@@ -61,7 +62,7 @@ func (s *Server) handleCreateMemory(c echo.Context) error {
 		INSERT INTO life_nodes (user_id, type, title, body, status, tags, attributes, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
-	`, node.UserID, node.Type, node.Title, node.Body, node.Status, node.Tags, node.Attributes, node.CreatedAt, node.UpdatedAt).Scan(&id)
+	`, node.UserID, node.Type, node.Title, node.Body, node.Status, pq.Array(node.Tags), node.Attributes, node.CreatedAt, node.UpdatedAt).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type Processor struct {
@@ -88,7 +89,7 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 		Title:        generateTitle(signal),
 		Body:         generateBody(signal),
 		Severity:     severity,
-		Fingerprints: []string{fp},
+		Fingerprints: pq.StringArray{fp},
 		CreatedAt:    time.Now().UTC(),
 	}
 
@@ -105,10 +106,10 @@ func (p *Processor) Process(ctx context.Context, userID uuid.UUID, signal models
 	}
 
 	// Insert card
-	_, err = p.store.DB.NamedExec(`
+	_, err = p.store.DB.Exec(`
 		INSERT INTO today_cards (user_id, local_day, slot, title, body, severity, fingerprints)
-		VALUES (:user_id, :local_day, :slot, :title, :body, :severity, :fingerprints)
-	`, card)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, card.UserID, card.LocalDay, card.Slot, card.Title, card.Body, card.Severity, pq.Array(card.Fingerprints))
 	if err != nil {
 		return nil, fmt.Errorf("insert card: %w", err)
 	}

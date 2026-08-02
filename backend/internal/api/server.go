@@ -68,6 +68,7 @@ func (s *Server) registerRoutes() {
 	// Memory
 	api.GET("/memories", s.handleListMemories)
 	api.POST("/memories", s.handleCreateMemory)
+	api.GET("/domains/overview", s.handleDomainsOverview)
 
 	// User
 	api.GET("/me", s.handleGetMe)

@@ -1,0 +1,52 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+      - name: Install scanners
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - name: Backend tests
+        run: go test ./...
+      - name: Vulnerability scan
+        run: govulncheck ./...
+      - name: Static security scan
+        run: gosec ./...
+
+  performance-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Start stack
+        run: docker compose up -d --build postgres redis qdrant ai-service api worker
+      - name: Wait for api
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs api worker
+          exit 1
+      - uses: grafana/setup-k6-action@v1
+      - name: k6 smoke
+        run: k6 run backend/tests/perf/today.js
+      - name: Shutdown stack
+        if: always()
+        run: docker compose down -v

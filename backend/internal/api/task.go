@@ -7,6 +7,7 @@ import (
 	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/lib/pq"
 )
 
 type CreateTaskRequest struct {
@@ -35,7 +36,7 @@ func (s *Server) handleCreateTask(c echo.Context) error {
 		Type:   "task",
 		Title:  req.Title,
 		Status: "active",
-		Tags:   req.Tags,
+		Tags:   pq.StringArray(req.Tags),
 	}
 	if req.Type != "" {
 		node.Type = req.Type
@@ -52,7 +53,7 @@ func (s *Server) handleCreateTask(c echo.Context) error {
 		INSERT INTO life_nodes (user_id, type, domain, title, status, due_date, tags)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
-	`, node.UserID, node.Type, node.Domain, node.Title, node.Status, node.DueDate, node.Tags).Scan(&id)
+	`, node.UserID, node.Type, node.Domain, node.Title, node.Status, node.DueDate, pq.Array(node.Tags)).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

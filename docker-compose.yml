@@ -50,10 +50,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    volumes:
-      - ./backend:/app
-    working_dir: /app
-    command: ["go", "run", "./cmd/api"]
+    command: ["./api"]
 
   ai-service:
     build:
@@ -83,8 +80,7 @@ services:
     depends_on:
       - postgres
       - redis
-    working_dir: /app
-    command: ["go", "run", "./cmd/worker"]
+    command: ["./worker"]
 
 volumes:
   pg_data:

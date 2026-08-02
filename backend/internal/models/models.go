@@ -1,10 +1,52 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
+
+type JSONMap map[string]any
+
+func (m *JSONMap) Scan(src any) error {
+	if src == nil {
+		*m = JSONMap{}
+		return nil
+	}
+
+	var raw []byte
+	switch value := src.(type) {
+	case []byte:
+		raw = value
+	case string:
+		raw = []byte(value)
+	default:
+		return fmt.Errorf("unsupported JSONMap scan type %T", src)
+	}
+
+	if len(raw) == 0 {
+		*m = JSONMap{}
+		return nil
+	}
+
+	decoded := JSONMap{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return err
+	}
+	*m = decoded
+	return nil
+}
+
+func (m JSONMap) Value() (driver.Value, error) {
+	if m == nil {
+		return []byte(`{}`), nil
+	}
+	return json.Marshal(m)
+}
 
 type User struct {
 	ID           uuid.UUID `db:"id" json:"id"`
@@ -19,7 +61,7 @@ type Connector struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	Provider   string    `db:"provider" json:"provider"`
-	Credentials map[string]any `db:"credentials" json:"-"`
+	Credentials JSONMap `db:"credentials" json:"-"`
 	IsActive   bool      `db:"is_active" json:"is_active"`
 	LastSyncAt *time.Time `db:"last_sync_at" json:"last_sync_at,omitempty"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
@@ -34,8 +76,8 @@ type LifeNode struct {
 	Body       *string   `db:"body" json:"body,omitempty"`
 	Status     string    `db:"status" json:"status"`
 	DueDate    *time.Time `db:"due_date" json:"due_date,omitempty"`
-	Tags       []string  `db:"tags" json:"tags"`
-	Attributes map[string]any `db:"attributes" json:"attributes"`
+	Tags       pq.StringArray  `db:"tags" json:"tags"`
+	Attributes JSONMap `db:"attributes" json:"attributes"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -50,7 +92,7 @@ type TodayCard struct {
 	Body         *string    `db:"body" json:"body,omitempty"`
 	Severity     int        `db:"severity" json:"severity"`
 	ActionLabel  *string    `db:"action_label" json:"action_label,omitempty"`
-	Fingerprints []string   `db:"fingerprints" json:"fingerprints"`
+	Fingerprints pq.StringArray   `db:"fingerprints" json:"fingerprints"`
 	DismissedAt  *time.Time `db:"dismissed_at" json:"dismissed_at,omitempty"`
 	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
 }
@@ -60,7 +102,7 @@ type ChatMessage struct {
 	UserID    uuid.UUID      `db:"user_id" json:"user_id"`
 	Role      string         `db:"role" json:"role"`
 	Content   string         `db:"content" json:"content"`
-	Actions   map[string]any `db:"actions" json:"actions,omitempty"`
+	Actions   JSONMap `db:"actions" json:"actions,omitempty"`
 	CreatedAt time.Time      `db:"created_at" json:"created_at"`
 }
 

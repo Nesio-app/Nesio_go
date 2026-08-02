@@ -92,6 +92,10 @@ export const memories = {
     api.post('/memories', data),
 }
 
+export const domains = {
+  overview: () => api.get('/domains/overview'),
+}
+
 export const user = {
   me: () => api.get('/me'),
   update: (data: any) => api.patch('/me', data),

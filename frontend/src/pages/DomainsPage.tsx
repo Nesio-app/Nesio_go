@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   IconHeart, IconBox, IconCreditCard, IconCalendar,
   IconMapPin, IconActivity, IconUsers, IconHanger,
@@ -6,6 +7,7 @@ import {
   IconHome, IconBulb, IconPlay, IconSettings,
   IconMusic, IconGift
 } from '../icons'
+import { domains as domainsApi } from '../api/client'
 
 const domains = [
   { icon: IconHeart, label: '健康', color: 'text-red-400', focus: '睡眠、恢复、体检', metric: '恢复指数 78', checklist: ['记录睡眠', '补水 2L', '安排体检提醒'] },
@@ -41,6 +43,14 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
   void onChat
   const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label']>('健康')
   const selectedDomain = domains.find((domain) => domain.label === selectedLabel) ?? domains[0]
+  const { data: overviewData } = useQuery({
+    queryKey: ['domains-overview'],
+    queryFn: async () => {
+      const response = await domainsApi.overview()
+      return response.data as Array<{ label: string; task_count: number; memory_count: number; urgent_count: number; latest_titles: string[] }>
+    },
+  })
+  const selectedOverview = overviewData?.find((item) => item.label === selectedLabel)
 
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
@@ -70,7 +80,7 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
             <div className="text-sm text-nesio-muted mt-1">{selectedDomain.focus}</div>
           </div>
           <div className="px-3 py-2 rounded-full bg-nesio-accentSoft text-sm text-nesio-accent">
-            {selectedDomain.metric}
+              {selectedOverview ? `任务 ${selectedOverview.task_count} · 记忆 ${selectedOverview.memory_count}` : selectedDomain.metric}
           </div>
         </div>
 
@@ -87,6 +97,13 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
           <div className="text-base text-nesio-ink mt-1">
             先从「{selectedDomain.checklist[0]}」开始，把这个领域的第一步变成今天卡片，再逐步沉淀到记忆和任务里。
           </div>
+          {selectedOverview && selectedOverview.latest_titles.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {selectedOverview.latest_titles.map((title) => (
+                <div key={title} className="text-sm text-nesio-muted">• {title}</div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
