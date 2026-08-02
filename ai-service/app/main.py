@@ -22,26 +22,48 @@ class ChatResponse(BaseModel):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    if req.mode == "card":
-        response = await call_openai_card(req.message, req.tier)
+    return await handle_chat_request(req.message, req.tier, req.mode)
+
+
+async def handle_chat_request(message: str, tier: str = "standard", mode: str = "chat") -> ChatResponse:
+    # Card mode uses structured card generation
+    if mode == "card":
+        response = await call_openai_card(message, tier)
         return response
 
-    if req.tier == "quick":
+    # Map tier to model
+    if tier == "quick":
         model = "gpt-4o-mini"
-    elif req.tier == "deep":
+    elif tier == "deep":
         model = "claude-3-5-sonnet"
     else:
         model = "gpt-4o"
 
+    # Attempt primary model, fallback to smaller quick model on failure
     try:
-        content = await call_openai(req.message, model)
+        content = await call_openai(message, model)
     except Exception:
         try:
-            content = await call_openai(req.message, "gpt-4o-mini")
+            content = await call_openai(message, "gpt-4o-mini")
         except Exception:
             content = "AI service temporarily unavailable. Please try again later."
 
     return ChatResponse(content=content)
+
+
+@app.post("/chat/quick", response_model=ChatResponse)
+async def chat_quick(req: ChatRequest):
+    return await handle_chat_request(req.message, "quick", req.mode)
+
+
+@app.post("/chat/standard", response_model=ChatResponse)
+async def chat_standard(req: ChatRequest):
+    return await handle_chat_request(req.message, "standard", req.mode)
+
+
+@app.post("/chat/deep", response_model=ChatResponse)
+async def chat_deep(req: ChatRequest):
+    return await handle_chat_request(req.message, "deep", req.mode)
 
 async def call_openai(message: str, model: str) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
