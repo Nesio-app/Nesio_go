@@ -30,7 +30,8 @@ func (s *Server) registerRoutes() {
 	api.Use(middleware.JWTWithConfig(middleware.JWTConfig{
 		SigningKey: []byte("nesio_dev_secret_change_in_prod"),
 		Skipper: func(c echo.Context) bool {
-			return c.Path() == "/api/v1/auth/register" || c.Path() == "/api/v1/auth/login"
+			path := c.Request().URL.Path
+			return path == "/api/v1/auth/register" || path == "/api/v1/auth/login"
 		},
 	}))
 	api.GET("/today", s.handleGetToday)
