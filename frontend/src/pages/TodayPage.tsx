@@ -4,12 +4,16 @@ import {
 } from '../icons'
 
 interface Props {
-  onMemory: () => void
-  onSettings: () => void
-  onChat: () => void
+  onMemory?: () => void
+  onSettings?: () => void
+  onChat?: () => void
 }
 
 export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
+  // avoid unused parameter errors when handlers are not passed
+  void onMemory
+  void onSettings
+  void onChat
   const [feeling, setFeeling] = useState('')
 
   return (

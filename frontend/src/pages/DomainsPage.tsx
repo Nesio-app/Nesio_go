@@ -3,7 +3,7 @@ import {
   IconMapPin, IconActivity, IconUsers, IconHanger,
   IconUser, IconTarget, IconUtensils, IconSparkles,
   IconHome, IconBulb, IconPlay, IconSettings,
-  IconMusic, IconGift, IconTrendingUp
+  IconMusic, IconGift
 } from '../icons'
 
 const domains = [
@@ -28,12 +28,17 @@ const domains = [
 ]
 
 interface Props {
-  onToday: () => void
-  onMemory: () => void
-  onChat: () => void
+  onToday?: () => void
+  onMemory?: () => void
+  onChat?: () => void
 }
 
 export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
+  // avoid unused parameter errors when embedded without handlers
+  void onToday
+  void onMemory
+  void onChat
+
   return (
     <div className="px-5 pt-6 pb-4">
       <div className="grid grid-cols-4 gap-3">
