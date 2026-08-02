@@ -1,16 +1,48 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { today } from '../api/client'
+import { signals, today } from '../api/client'
 
 export default function TodayPage() {
   const qc = useQueryClient()
   const nav = useNavigate()
-  const { data } = useQuery({ queryKey: ['today'], queryFn: () => today.get().then(r => r.data) })
+  const [slotFilter, setSlotFilter] = useState('')
+  const [minSeverity, setMinSeverity] = useState('0')
+  const { data } = useQuery({
+    queryKey: ['today', slotFilter, minSeverity],
+    queryFn: () => today.get(undefined, slotFilter, minSeverity).then(r => r.data),
+  })
   const cards = data?.cards || []
+
+  const [source, setSource] = useState('note')
+  const [rawData, setRawData] = useState('')
+  const [error, setError] = useState('')
 
   const dismiss = useMutation({
     mutationFn: (id: string) => today.dismiss(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['today'] }),
+  })
+
+  const mute = useMutation({
+    mutationFn: (id: string) => today.mute(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['today'] }),
+  })
+
+  const done = useMutation({
+    mutationFn: (id: string) => today.done(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['today'] }),
+  })
+
+  const createSignal = useMutation({
+    mutationFn: (payload: any) => signals.create(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['today'] })
+      setRawData('')
+      setError('')
+    },
+    onError: (err: any) => {
+      setError(err.response?.data?.message || 'Unable to capture')
+    },
   })
 
   return (
@@ -38,6 +70,75 @@ export default function TodayPage() {
         </div>
       </div>
 
+      <div className="card-white mb-4 p-4 rounded-3xl bg-white/95 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[#94A3B8]">Capture</p>
+            <h2 className="font-semibold text-lg">Quick signal</h2>
+          </div>
+          <span className="text-xs text-[#6B9FD4]">Live</span>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs uppercase tracking-wider text-[#94A3B8]">Source</label>
+            <select value={source} onChange={(e) => setSource(e.target.value)} className="w-full mt-2 rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none">
+              <option value="note">Note</option>
+              <option value="email">Email</option>
+              <option value="calendar">Calendar</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wider text-[#94A3B8]">What should Nesio know?</label>
+            <textarea
+              value={rawData}
+              onChange={(e) => setRawData(e.target.value)}
+              rows={4}
+              className="w-full mt-2 rounded-3xl border border-slate-200 px-4 py-3 text-sm outline-none"
+              placeholder="Write a quick reminder, meeting note, or email summary"
+            />
+          </div>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <button
+            onClick={() => {
+              if (!rawData.trim()) {
+                setError('Please enter something to capture.')
+                return
+              }
+              createSignal.mutate({
+                source,
+                anchor_id: `${source}-${Date.now()}`,
+                raw_data: rawData,
+                fields: { text: rawData },
+              })
+            }}
+            disabled={createSignal.isPending}
+            className="w-full rounded-2xl bg-[#6B9FD4] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {createSignal.isPending ? 'Capturing…' : 'Capture signal'}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="w-full sm:w-auto">
+          <label className="text-xs uppercase tracking-wider text-[#94A3B8]">Slot</label>
+          <select value={slotFilter} onChange={(e) => setSlotFilter(e.target.value)} className="w-full mt-2 rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none">
+            <option value="">All slots</option>
+            <option value="pinned">Pinned</option>
+            <option value="guidance">Guidance</option>
+            <option value="task">Task</option>
+          </select>
+        </div>
+        <div className="w-full sm:w-auto">
+          <label className="text-xs uppercase tracking-wider text-[#94A3B8]">Severity</label>
+          <select value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)} className="w-full mt-2 rounded-2xl border border-slate-200 px-3 py-3 text-sm outline-none">
+            <option value="0">All severities</option>
+            <option value="1">Normal+</option>
+            <option value="2">Important+</option>
+            <option value="3">Critical only</option>
+          </select>
+        </div>
+      </div>
       <div className="space-y-3">
         <div className="card-white flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-[#F0F4F8] flex items-center justify-center text-[#6B9FD4]">
@@ -64,14 +165,25 @@ export default function TodayPage() {
         </div>
 
         {cards.map((card: any) => (
-          <div key={card.id} className="card-white flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-[15px]">{card.title}</h3>
-              {card.body && <p className="text-sm text-[#94A3B8] mt-1">{card.body}</p>}
+          <div key={card.id} className="card-white rounded-3xl bg-white/95 p-4 shadow-sm">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="font-semibold text-[15px]">{card.title}</h3>
+                    <span className={`text-[11px] rounded-full px-2 py-1 ${card.severity === 3 ? 'bg-red-100 text-red-600' : card.severity === 2 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {card.severity === 3 ? 'Critical' : card.severity === 2 ? 'Important' : 'Normal'}
+                    </span>
+                  </div>
+                  {card.body && <p className="text-sm text-[#94A3B8]">{card.body}</p>}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
+                <button onClick={() => done.mutate(card.id)} className="rounded-full border border-slate-200 px-3 py-2 text-sm text-emerald-600">Done</button>
+                <button onClick={() => mute.mutate(card.id)} className="rounded-full border border-slate-200 px-3 py-2 text-sm text-[#6B9FD4]">Mute</button>
+                <button onClick={() => dismiss.mutate(card.id)} className="rounded-full border border-slate-200 px-3 py-2 text-sm text-[#CBD5E1]">Dismiss</button>
+              </div>
             </div>
-            <button onClick={() => dismiss.mutate(card.id)} className="text-[#CBD5E1]">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
           </div>
         ))}
       </div>

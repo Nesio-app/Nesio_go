@@ -43,6 +43,7 @@ services:
       - REDIS_URL=redis:6379
       - QDRANT_URL=http://qdrant:6333
       - JWT_SECRET=nesio_dev_secret_change_in_prod
+      - CONNECTOR_SECRET=0123456789abcdef0123456789abcdef
       - AI_SERVICE_URL=http://ai-service:8000
     depends_on:
       postgres:
@@ -76,6 +77,7 @@ services:
     environment:
       - DATABASE_URL=postgres://nesio:nesio_dev@postgres:5432/nesio?sslmode=disable
       - REDIS_URL=redis:6379
+      - CONNECTOR_SECRET=0123456789abcdef0123456789abcdef
       - AI_SERVICE_URL=http://ai-service:8000
       - JWT_SECRET=nesio_dev_secret_change_in_prod
     depends_on:

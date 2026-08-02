@@ -1,5 +1,4 @@
 package api
-
 import (
 	"bytes"
 	"encoding/json"
@@ -7,19 +6,19 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/Nesio-app/Nesio_go/internal/models"
 )
 
 type ChatRequest struct {
-	Message         string `json:"message" validate:"required"`
-	Tier            string `json:"tier,omitempty"`
-	RequiresReasoning bool `json:"requires_reasoning,omitempty"`
+	Message           string `json:"message" validate:"required"`
+	Tier              string `json:"tier,omitempty"`
+	RequiresReasoning bool   `json:"requires_reasoning,omitempty"`
 }
 
 type ChatResponse struct {
-	Content string `json:"content"`
+	Content string   `json:"content"`
 	Sources []string `json:"sources,omitempty"`
 }
 
@@ -38,7 +37,7 @@ func (s *Server) handleChat(c echo.Context) error {
 
 	// Route to AI service
 	tier := selectTier(req)
-	aiResp, err := callAIService(req.Message, tier)
+	aiResp, err := callAIService(req.Message, tier, "chat")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "AI service error: "+err.Error())
 	}
@@ -81,7 +80,7 @@ func selectTier(req ChatRequest) string {
 	return "standard"
 }
 
-func callAIService(message, tier string) (*ChatResponse, error) {
+func callAIService(message, tier, mode string) (*ChatResponse, error) {
 	aiURL := os.Getenv("AI_SERVICE_URL")
 	if aiURL == "" {
 		aiURL = "http://ai-service:8000"
@@ -90,6 +89,7 @@ func callAIService(message, tier string) (*ChatResponse, error) {
 	payload := map[string]any{
 		"message": message,
 		"tier":    tier,
+		"mode":    mode,
 	}
 	body, _ := json.Marshal(payload)
 

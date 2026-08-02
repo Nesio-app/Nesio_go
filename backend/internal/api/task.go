@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/Nesio-app/Nesio_go/internal/models"
 )
 
 type CreateTaskRequest struct {

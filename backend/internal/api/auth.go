@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
 	"github.com/Nesio-app/Nesio_go/internal/auth"
+	"github.com/labstack/echo/v4"
 )
 
 type RegisterRequest struct {
@@ -32,7 +32,7 @@ func (s *Server) handleRegister(c echo.Context) error {
 	}
 	return c.JSON(http.StatusCreated, map[string]any{
 		"token": token,
-		"user": map[string]any{"id": id, "email": req.Email},
+		"user":  map[string]any{"id": id, "email": req.Email},
 	})
 }
 
@@ -51,6 +51,6 @@ func (s *Server) handleLogin(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, map[string]any{
 		"token": token,
-		"user": map[string]any{"id": id, "email": req.Email},
+		"user":  map[string]any{"id": id, "email": req.Email},
 	})
 }

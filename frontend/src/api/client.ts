@@ -34,8 +34,8 @@ export const auth = {
 }
 
 export const today = {
-  get: (localDay?: string) =>
-    api.get('/today', { params: { local_day: localDay } }),
+  get: (localDay?: string, slot?: string, minSeverity?: string) =>
+    api.get('/today', { params: { local_day: localDay, slot, min_severity: minSeverity } }),
   dismiss: (id: string) =>
     api.post(`/cards/${id}/dismiss`),
   mute: (id: string) =>
@@ -62,12 +62,21 @@ export const chat = {
 
 export const connectors = {
   list: () => api.get('/connectors'),
-  auth: (provider: string) =>
-    api.post(`/connectors/${provider}/auth`),
+  auth: (provider: string, credentials: any) =>
+    api.post(`/connectors/${provider}/auth`, { credentials }),
   delete: (id: string) =>
     api.delete(`/connectors/${id}`),
   sync: (id: string) =>
     api.post(`/connectors/${id}/sync`),
+}
+
+export const memories = {
+  list: () => api.get('/memories'),
+  create: (data: any) => api.post('/memories', data),
+}
+
+export const signals = {
+  create: (data: any) => api.post('/signals', data),
 }
 
 export const user = {
