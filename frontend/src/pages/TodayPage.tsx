@@ -6,12 +6,10 @@ import {
 interface Props {
   onMemory: () => void
   onSettings: () => void
-  onChat?: () => void
+  onChat: () => void
 }
 
 export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
-  // mark onChat as used to avoid unused parameter complaint
-  void onChat
   const [feeling, setFeeling] = useState('')
 
   return (

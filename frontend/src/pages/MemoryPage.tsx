@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import {
   IconSearch, IconBookmark, IconBox, IconFolder,
-  IconUser, IconFileText, IconCalendar, IconArrowLeft
+  IconUser, IconFileText, IconCreditCard, IconHeart,
+  IconCalendar, IconArrowLeft
 } from '../icons'
 
 const tags = [

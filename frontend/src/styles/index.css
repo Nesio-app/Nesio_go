@@ -4,27 +4,65 @@
 
 @layer base {
   :root {
-    --nesio-bg: #F2F0ED;
-    --nesio-card: #FFFFFF;
-    --nesio-ink: #2D2D2D;
-    --nesio-muted: #8A8A8A;
-    --nesio-accent: #B87A72;
-    --nesio-accent-light: #E8D5D1;
-    --nesio-accent-soft: #F5EBE8;
-    --nesio-border: #E8E4E0;
-    --nesio-icon-bg: #F5F0EC;
-  }
-  body {
-    @apply bg-nesio-bg text-nesio-ink font-sans antialiased;
-    -webkit-tap-highlight-color: transparent;
+  --color-portal-blue: #588ce3;
+  --color-portal-ink: #1e2a3a;
+  --color-status-go: #5a9e7a;
+  --color-status-risk: #cf6b6b;
+  --color-bg-base: #f8f9fa;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #1e2a3a;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+  --font-sans: 'Noto Sans SC', system-ui, sans-serif;
   }
 }
 
-@layer components {
-  .nesio-card {
-    @apply bg-nesio-card rounded-2xl shadow-card;
-  }
-  .nesio-icon-btn {
-    @apply flex items-center justify-center rounded-2xl bg-nesio-icon-bg transition active:scale-95;
-  }
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+.card {
+  background: var(--color-bg-card);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.card-pinned {
+  border-left: 4px solid var(--color-status-risk);
+}
+
+.card-guidance {
+  border-left: 4px solid var(--color-portal-blue);
+}
+
+.card-task {
+  border-left: 4px solid var(--color-status-go);
+}
+
+.btn-primary {
+  background: var(--color-portal-blue);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+.btn-ghost:hover {
+  background: var(--color-bg-base);
 }

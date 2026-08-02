@@ -1,24 +1,21 @@
-import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' }
 })
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
-    config.headers = config.headers ?? {}
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore allow assignment to headers union
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
 api.interceptors.response.use(
-  (res: AxiosResponse) => res,
-  (err: any) => {
+  (res) => res,
+  (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
@@ -37,8 +34,8 @@ export const auth = {
 }
 
 export const today = {
-  get: (localDay?: string, slot?: string, minSeverity?: string) =>
-    api.get('/today', { params: { local_day: localDay, slot, min_severity: minSeverity } }),
+  get: (localDay?: string) =>
+    api.get('/today', { params: { local_day: localDay } }),
   dismiss: (id: string) =>
     api.post(`/cards/${id}/dismiss`),
   mute: (id: string) =>
@@ -65,21 +62,12 @@ export const chat = {
 
 export const connectors = {
   list: () => api.get('/connectors'),
-  auth: (provider: string, credentials: any) =>
-    api.post(`/connectors/${provider}/auth`, { credentials }),
+  auth: (provider: string) =>
+    api.post(`/connectors/${provider}/auth`),
   delete: (id: string) =>
     api.delete(`/connectors/${id}`),
   sync: (id: string) =>
     api.post(`/connectors/${id}/sync`),
-}
-
-export const memories = {
-  list: () => api.get('/memories'),
-  create: (data: any) => api.post('/memories', data),
-}
-
-export const signals = {
-  create: (data: any) => api.post('/signals', data),
 }
 
 export const user = {
