@@ -11,8 +11,8 @@ import (
 )
 
 type CreateMemoryRequest struct {
-	Title string `json:"title" validate:"required"`
-	Body  string `json:"body,omitempty"`
+	Title string   `json:"title" validate:"required"`
+	Body  string   `json:"body,omitempty"`
 	Tags  []string `json:"tags,omitempty"`
 }
 
@@ -23,7 +23,7 @@ func (s *Server) handleListMemories(c echo.Context) error {
 	err := s.store.DB.Select(&nodes, `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
-		WHERE user_id = $1 AND type = 'memory'
+		WHERE user_id = $1
 		AND ($2 = '' OR domain = $2)
 		ORDER BY created_at DESC
 	`, userID, domain)
@@ -42,21 +42,20 @@ func (s *Server) handleCreateMemory(c echo.Context) error {
 	return s.createMemoryForUser(c, userID, req, nil)
 }
 
-
 func (s *Server) createMemoryForUser(c echo.Context, userID uuid.UUID, req CreateMemoryRequest, domain *string) error {
 	tags := pq.StringArray(req.Tags)
 	if tags == nil {
 		tags = pq.StringArray{}
 	}
 	node := models.LifeNode{
-		UserID: userID,
-		Type:   "memory",
-		Title:  req.Title,
-		Status: "active",
-		Tags:   tags,
+		UserID:     userID,
+		Type:       "memory",
+		Title:      req.Title,
+		Status:     "active",
+		Tags:       tags,
 		Attributes: models.JSONMap{"source_text": req.Body},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
 	}
 	node.Domain = domain
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconCloud, IconMic, IconPlus, IconX
 } from '../icons'
@@ -32,6 +32,7 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   const [feeling, setFeeling] = useState('')
   const [taskTitle, setTaskTitle] = useState('')
   const [saveMessage, setSaveMessage] = useState('')
+  const queryClient = useQueryClient()
   const { data, isLoading } = useQuery<TodayResponse>({
     queryKey: ['today-cards'],
     queryFn: async () => {
@@ -47,6 +48,7 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     onSuccess: () => {
       setTaskTitle('')
       setSaveMessage('已保存到任务。')
+      void queryClient.invalidateQueries({ queryKey: ['memories'] })
     },
     onError: () => setSaveMessage('保存失败，请重新登录后再试。'),
   })

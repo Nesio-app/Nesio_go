@@ -6,16 +6,6 @@ import {
 } from '../icons'
 import { memories } from '../api/client'
 
-const tags = [
-  { name: '全部', count: 3318, active: true },
-  { name: '人物', count: 133, active: false },
-  { name: '物品', count: 0, active: false },
-  { name: '手记', count: 1333, active: false },
-  { name: '系统', count: 0, active: false },
-  { name: '财务', count: 1441, active: false },
-  { name: '健康', count: 1, active: false },
-]
-
 const sources = [
   { name: '笔记', count: 0, icon: IconFileText },
   { name: '事件', count: 0, icon: IconCalendar },
@@ -27,9 +17,12 @@ interface Props {
 
 interface MemoryItem {
   id: string
+  type: string
+  domain?: string
   title: string
   body?: string
   tags: string[]
+  created_at: string
 }
 
 export default function MemoryPage({ onBack }: Props) {
@@ -43,11 +36,20 @@ export default function MemoryPage({ onBack }: Props) {
     },
   })
 
-  const memoryItems = (data ?? []).filter((item) => {
-    if (!query.trim()) {
-      return true
-    }
-    return `${item.title} ${item.body ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())
+  const allItems = data ?? []
+  const categories = [
+    { name: '全部', count: allItems.length },
+    { name: '任务', count: allItems.filter((item) => item.type === 'task').length },
+    { name: '记忆', count: allItems.filter((item) => item.type === 'memory').length },
+    { name: '其他', count: allItems.filter((item) => !['task', 'memory'].includes(item.type)).length },
+  ]
+  const memoryItems = allItems.filter((item) => {
+    const matchesCategory = activeTag === '全部'
+      || (activeTag === '任务' && item.type === 'task')
+      || (activeTag === '记忆' && item.type === 'memory')
+      || (activeTag === '其他' && !['task', 'memory'].includes(item.type))
+    const searchText = `${item.title} ${item.body ?? ''} ${item.domain ?? ''} ${item.tags.join(' ')}`.toLowerCase()
+    return matchesCategory && searchText.includes(query.trim().toLowerCase())
   })
 
   return (
@@ -95,12 +97,12 @@ export default function MemoryPage({ onBack }: Props) {
       {/* All Memories */}
       <div>
         <div className="text-base font-bold text-nesio-ink mb-3">
-          全部记忆 · {memoryItems.length} 条 · 可搜
+          全部记忆映射 · {allItems.length} 条
         </div>
 
         {/* Tags */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {tags.map((t) => (
+          {categories.map((t) => (
             <button
               key={t.name}
               onClick={() => setActiveTag(t.name)}
@@ -110,10 +112,9 @@ export default function MemoryPage({ onBack }: Props) {
                   : 'bg-white text-nesio-ink border border-nesio-border'
               }`}
             >
-              {t.name === '人物' && <IconUser className="w-3.5 h-3.5" />}
-              {t.name === '物品' && <IconBox className="w-3.5 h-3.5" />}
-              {t.name === '手记' && <IconFileText className="w-3.5 h-3.5" />}
-              {t.name === '系统' && <IconCalendar className="w-3.5 h-3.5" />}
+              {t.name === '任务' && <IconCalendar className="w-3.5 h-3.5" />}
+              {t.name === '记忆' && <IconFileText className="w-3.5 h-3.5" />}
+              {t.name === '其他' && <IconUser className="w-3.5 h-3.5" />}
               <span>{t.name}</span>
               {t.count > 0 && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTag === t.name ? 'bg-white/20' : 'bg-nesio-bg'}`}>
@@ -134,10 +135,20 @@ export default function MemoryPage({ onBack }: Props) {
         <div className="space-y-3">
           {memoryItems.slice(0, 8).map((item) => (
             <div key={item.id} className="bg-white rounded-2xl p-4 shadow-card">
-              <div className="text-base font-medium text-nesio-ink">{item.title}</div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-base font-medium text-nesio-ink">{item.title}</div>
+                <span className="shrink-0 rounded-full bg-nesio-accentSoft px-2 py-1 text-xs text-nesio-accent">
+                  {item.type === 'task' ? '任务' : item.type === 'memory' ? '记忆' : item.type}
+                </span>
+              </div>
               {item.body && <div className="text-sm text-nesio-muted mt-1">{item.body}</div>}
-              {item.tags.length > 0 && (
+              {(item.domain || item.tags.length > 0) && (
                 <div className="flex flex-wrap gap-2 mt-3">
+                  {item.domain && (
+                    <span className="px-2 py-1 rounded-full bg-nesio-bg text-xs text-nesio-muted">
+                      {item.domain}
+                    </span>
+                  )}
                   {item.tags.map((tag) => (
                     <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg text-xs text-nesio-muted">
                       {tag}
@@ -148,7 +159,7 @@ export default function MemoryPage({ onBack }: Props) {
             </div>
           ))}
           {memoryItems.length === 0 && (
-            <div className="text-sm text-nesio-muted">还没有记忆数据，先通过聊天或信号生成内容。</div>
+            <div className="text-sm text-nesio-muted">当前筛选下还没有云端记忆映射。</div>
           )}
           {memoryItems.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
