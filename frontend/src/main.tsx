@@ -8,7 +8,9 @@ import './styles/index.css'
 const queryClient = new QueryClient()
 
 if ('serviceWorker' in navigator) {
-  void navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`)
+  void navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`)
+    .then((registration) => registration.update())
 }
 setupOfflineQueueSync()
 void flushQueuedRequests()
