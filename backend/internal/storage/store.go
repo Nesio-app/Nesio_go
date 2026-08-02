@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -26,14 +27,26 @@ func New(ctx context.Context, dbURL, redisURL string) (*Store, error) {
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: redisURL,
-	})
+	redisOptions, err := parseRedisOptions(redisURL)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("parse redis URL: %w", err)
+	}
+	rdb := redis.NewClient(redisOptions)
 	if err := rdb.Ping(ctx).Err(); err != nil {
+		rdb.Close()
+		db.Close()
 		return nil, fmt.Errorf("connect redis: %w", err)
 	}
 
 	return &Store{DB: db, RDB: rdb}, nil
+}
+
+func parseRedisOptions(redisURL string) (*redis.Options, error) {
+	if strings.Contains(redisURL, "://") {
+		return redis.ParseURL(redisURL)
+	}
+	return &redis.Options{Addr: redisURL}, nil
 }
 
 func (s *Store) Close() error {
