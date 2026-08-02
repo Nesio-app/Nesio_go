@@ -11,6 +11,7 @@ import (
 	"github.com/Nesio-app/Nesio_go/internal/api"
 	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
+	"github.com/Nesio-app/Nesio_go/internal/worker"
 )
 
 func main() {
@@ -30,6 +31,9 @@ func main() {
 		log.Fatalf("failed to migrate legacy connector credentials: %v", err)
 	}
 
+	backgroundWorker := worker.New(store)
+	go backgroundWorker.Start()
+
 	server := api.NewServer(store)
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -47,6 +51,7 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer shutdownCancel()
+	backgroundWorker.Stop()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("server shutdown error: %v", err)
 	}

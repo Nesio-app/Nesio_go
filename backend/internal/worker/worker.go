@@ -25,18 +25,25 @@ type Worker struct {
 
 func New(store *storage.Store) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
-	redisAddr := store.RDB.Options().Addr
+	redisOptions := store.RDB.Options()
+	asynqOptions := asynq.RedisClientOpt{
+		Addr:      redisOptions.Addr,
+		Username:  redisOptions.Username,
+		Password:  redisOptions.Password,
+		DB:        redisOptions.DB,
+		TLSConfig: redisOptions.TLSConfig,
+	}
 	server := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: redisAddr},
+		asynqOptions,
 		asynq.Config{
 			Concurrency: 5,
 		},
 	)
 	sched := asynq.NewScheduler(
-		asynq.RedisClientOpt{Addr: redisAddr},
+		asynqOptions,
 		&asynq.SchedulerOpts{},
 	)
-	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	client := asynq.NewClient(asynqOptions)
 	return &Worker{store: store, ctx: ctx, cancel: cancel, client: client, server: server, sched: sched}
 }
 
