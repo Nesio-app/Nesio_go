@@ -32,9 +32,10 @@ func (s *Server) registerRoutes() {
 	s.e.POST("/api/v1/auth/register", s.handleRegister)
 	s.e.POST("/api/v1/auth/login", s.handleLogin)
 
-	// Public OAuth callback / authorization simulation
+	// Public OAuth callbacks
 	s.e.GET("/api/v1/connectors/:provider/authorize", s.handleConnectorAuthorize)
 	s.e.GET("/api/v1/connectors/:provider/callback", s.handleConnectorCallback)
+	s.e.GET("/api/v1/connectors/gmail/oauth/callback", s.handleGmailOAuthCallback)
 
 	// Protected
 	api := s.e.Group("/api/v1")
@@ -61,6 +62,7 @@ func (s *Server) registerRoutes() {
 	api.POST("/connectors/:provider/auth", s.handleConnectorAuth)
 	api.DELETE("/connectors/:id", s.handleDeleteConnector)
 	api.POST("/connectors/:id/sync", s.handleSyncConnector)
+	api.GET("/connectors/gmail/oauth/authorize", s.handleGmailOAuthAuthorize)
 	api.GET("/connectors/gmail/inbox", s.handleGmailInbox)
 	api.POST("/connectors/gmail/send", s.handleGmailSend)
 

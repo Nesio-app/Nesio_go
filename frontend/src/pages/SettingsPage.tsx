@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 import {
   IconSun, IconShield, IconGift, IconHelp, IconBulb, IconChevronRight,
   IconSettings, IconArrowLeft
 } from '../icons'
+import { connectors as connectorsApi } from '../api/client'
 
 const menuItems = [
   { icon: IconSun, label: '外观与语言', color: 'bg-blue-50 text-blue-500' },
@@ -20,6 +22,24 @@ interface Props {
 }
 
 export default function SettingsPage({ onBack, themeMode, palette, onThemeChange, onPaletteChange }: Props) {
+  const connectorListQuery = useQuery({
+    queryKey: ['connectors'],
+    queryFn: async () => {
+      const r = await connectorsApi.list()
+      return r.data as Array<{ id: string; provider: string; is_active: boolean; last_sync_at?: string | null }>
+    },
+  })
+  const gmailConnected = connectorListQuery.data?.some((c) => c.provider === 'gmail' && c.is_active)
+
+  const connectGmail = async () => {
+    try {
+      const { data } = await (await import('../api/client')).gmail.authorizeUrl()
+      window.location.href = data.auth_url as string
+    } catch {
+      alert('Gmail OAuth 尚未配置：请在服务器设置 GOOGLE_CLIENT_ID 和 GOOGLE_CLIENT_SECRET。')
+    }
+  }
+
   return (
     <div className="px-5 pt-6 pb-4 space-y-6">
       {/* Header */}
@@ -50,6 +70,34 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
         >
           返回今天
         </button>
+      </div>
+
+      {/* Connectors */}
+      <div className="nesio-card p-4 space-y-3">
+        <div className="text-sm font-semibold text-nesio-ink">连接账号</div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+              <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+              </svg>
+            </div>
+            <div>
+              <div className="text-sm font-medium text-nesio-ink">Gmail</div>
+              <div className="text-xs text-nesio-muted">
+                {gmailConnected ? '已连接 · 可收发邮件' : '未连接'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={connectGmail}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition active:opacity-80 ${
+              gmailConnected ? 'bg-nesio-border text-nesio-muted' : 'bg-nesio-accent text-white'
+            }`}
+          >
+            {gmailConnected ? '重新授权' : '连接'}
+          </button>
+        </div>
       </div>
 
       <div className="nesio-card p-4 space-y-4">

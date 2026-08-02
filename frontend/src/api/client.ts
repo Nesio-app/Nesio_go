@@ -87,9 +87,10 @@ export const connectors = {
 }
 
 export const gmail = {
-  inbox: () => api.get('/connectors/gmail/inbox'),
+  inbox: (params?: { box?: 'inbox' | 'sent'; q?: string }) => api.get('/connectors/gmail/inbox', { params }),
   send: (data: { to: string; subject: string; body: string }) =>
     api.post('/connectors/gmail/send', data),
+  authorizeUrl: () => api.get('/connectors/gmail/oauth/authorize'),
 }
 
 export const memories = {

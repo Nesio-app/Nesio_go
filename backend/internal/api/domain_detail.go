@@ -28,9 +28,9 @@ func (s *Server) handleDomainDetail(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
 	domain := c.Param("domain")
 
-	var tasks []models.LifeNode
-	var memory []models.LifeNode
-	var todayCards []models.TodayCard
+	tasks := []models.LifeNode{}
+	memory := []models.LifeNode{}
+	todayCards := []models.TodayCard{}
 
 	if err := s.store.DB.Select(&tasks, `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at

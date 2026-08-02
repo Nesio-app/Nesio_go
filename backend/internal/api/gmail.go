@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/google/uuid"
@@ -57,9 +58,18 @@ func (s *Server) handleGmailInbox(c echo.Context) error {
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+	box := c.QueryParam("box")
+	if box == "" {
+		box = "inbox"
+	}
+	search := c.QueryParam("q")
+	query := fmt.Sprintf("in:%s newer_than:7d", box)
+	if search != "" {
+		query += " " + search
+	}
 
 	var list gmailListResponse
-	endpoint := "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=in:inbox newer_than:7d"
+	endpoint := "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=" + url.QueryEscape(query)
 	if err := doGoogleJSON(c.Request().Context(), accessToken, endpoint, &list); err != nil {
 		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
 	}
@@ -141,6 +151,24 @@ func (s *Server) getGmailAccessToken(userID uuid.UUID) (string, error) {
 	if accessToken == "" {
 		return "", fmt.Errorf("gmail connector missing access_token")
 	}
+
+	// Auto-refresh if within 5 minutes of expiry.
+	if expiry, ok := credentials["token_expiry"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, expiry); err == nil && time.Until(t) < 5*time.Minute {
+			refreshToken, _ := credentials["refresh_token"].(string)
+			if refreshToken != "" {
+				if newTokens, err := refreshGoogleToken(context.Background(), refreshToken); err == nil {
+					accessToken = newTokens.AccessToken
+					credentials["access_token"] = newTokens.AccessToken
+					credentials["token_expiry"] = time.Now().Add(time.Duration(newTokens.ExpiresIn) * time.Second).UTC().Format(time.RFC3339)
+					if enc, err := connector.EncryptCredentials(credentials); err == nil {
+						_, _ = s.store.DB.Exec(`UPDATE connectors SET credentials = $1, last_sync_at = now() WHERE id = $2`, enc, row.ID)
+					}
+				}
+			}
+		}
+	}
+
 	return accessToken, nil
 }
 

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconHeart, IconBox, IconCreditCard, IconCalendar,
   IconMapPin, IconActivity, IconUsers, IconHanger,
   IconUser, IconTarget, IconUtensils, IconSparkles,
   IconHome, IconBulb, IconPlay, IconSettings,
-  IconMusic, IconGift
+  IconMusic, IconGift, IconArrowLeft, IconPlus
 } from '../icons'
 import { domains as domainsApi, gmail } from '../api/client'
 
@@ -37,12 +37,13 @@ interface Props {
 }
 
 export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
-  // avoid unused parameter errors when embedded without handlers
-  void onToday
   void onMemory
   void onChat
   const queryClient = useQueryClient()
   const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label']>('健康')
+  const [scheduleSection, setScheduleSection] = useState<'calendar' | 'inbox' | 'sent'>('calendar')
+  const [scheduleFilter, setScheduleFilter] = useState<'all' | 'todo' | 'noDue' | 'done' | 'notification' | 'important' | 'billing' | 'review'>('all')
+  const [scheduleSearch, setScheduleSearch] = useState('')
   const [taskTitle, setTaskTitle] = useState('')
   const [memoryTitle, setMemoryTitle] = useState('')
   const [memoryBody, setMemoryBody] = useState('')
@@ -70,10 +71,10 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
     },
   })
   const gmailInboxQuery = useQuery({
-    queryKey: ['gmail-inbox', selectedLabel],
-    enabled: selectedLabel === '日程',
+    queryKey: ['gmail-inbox', selectedLabel, scheduleSection, scheduleSearch],
+    enabled: selectedLabel === '日程' && scheduleSection !== 'calendar',
     queryFn: async () => {
-      const response = await gmail.inbox()
+      const response = await gmail.inbox({ box: scheduleSection === 'sent' ? 'sent' : 'inbox', q: scheduleSearch || undefined })
       return response.data as { messages: Array<{ id: string; from: string; subject: string; snippet: string }> }
     },
   })
@@ -119,6 +120,192 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
       await gmailInboxQuery.refetch()
     },
   })
+
+  const scheduleCards = useMemo(() => {
+    if (selectedLabel !== '日程') {
+      return []
+    }
+    const tasks = detailQuery.data?.tasks ?? []
+    const todayCards = detailQuery.data?.today ?? []
+    const mapped = [
+      ...todayCards.map((item) => ({
+        id: item.id,
+        title: item.title,
+        subtitle: item.body ?? '日程提醒',
+        meta: item.severity >= 3 ? '提醒' : '日程',
+        date: '今天',
+        section: item.severity >= 3 ? 'important' : 'notification',
+      })),
+      ...tasks.map((task) => ({
+        id: task.id,
+        title: task.title,
+        subtitle: task.status === 'done' ? '已完成' : '待办事项',
+        meta: task.due_date ? '待办' : '无截止日期',
+        date: task.due_date ? new Date(task.due_date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '稍后',
+        section: task.status === 'done' ? 'done' : task.due_date ? 'todo' : 'noDue',
+      })),
+    ]
+    return mapped.filter((item) => {
+      const searchHit = !scheduleSearch.trim() || `${item.title} ${item.subtitle}`.toLowerCase().includes(scheduleSearch.trim().toLowerCase())
+      const filterHit = scheduleFilter === 'all' || item.section === scheduleFilter
+      return searchHit && filterHit
+    })
+  }, [detailQuery.data, scheduleFilter, scheduleSearch, selectedLabel])
+
+  const scheduleMailCards = useMemo(() => {
+    const messages = gmailInboxQuery.data?.messages ?? []
+    return messages.filter((message) => {
+      const searchHit = !scheduleSearch.trim() || `${message.subject} ${message.from} ${message.snippet}`.toLowerCase().includes(scheduleSearch.trim().toLowerCase())
+      if (!searchHit) {
+        return false
+      }
+      if (scheduleFilter === 'all') {
+        return true
+      }
+      if (scheduleFilter === 'important') {
+        return /important|urgent|action|required/i.test(`${message.subject} ${message.snippet}`)
+      }
+      if (scheduleFilter === 'notification') {
+        return /notification|notice|reminder/i.test(`${message.subject} ${message.snippet}`)
+      }
+      if (scheduleFilter === 'billing') {
+        return /bill|invoice|receipt|refund|order|payment/i.test(`${message.subject} ${message.snippet}`)
+      }
+      if (scheduleFilter === 'review') {
+        return /review|comment|feedback/i.test(`${message.subject} ${message.snippet}`)
+      }
+      return true
+    })
+  }, [gmailInboxQuery.data, scheduleFilter, scheduleSearch])
+
+  const scheduleTabCounts = {
+    calendar: (detailQuery.data?.tasks?.length ?? 0) + (detailQuery.data?.today?.length ?? 0),
+    inbox: gmailInboxQuery.data?.messages?.length ?? selectedOverview?.memory_count ?? 0,
+    sent: scheduleSection === 'sent' ? gmailInboxQuery.data?.messages?.length ?? 0 : 5,
+  }
+
+  const renderScheduleWorkspace = () => (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between px-1">
+        <button onClick={() => onToday?.()} className="w-16 h-16 rounded-full bg-nesio-accentSoft flex items-center justify-center text-nesio-accent">
+          <IconArrowLeft className="w-8 h-8" />
+        </button>
+        <div className="text-[54px] font-bold tracking-tight text-nesio-ink leading-none">日程</div>
+        <button onClick={() => onToday?.()} className="px-8 py-4 rounded-full border border-nesio-border bg-nesio-accentSoft text-nesio-accent text-3xl font-semibold">
+          今天
+        </button>
+      </div>
+
+      <div className="rounded-[40px] bg-[#efe8e7] p-2 flex items-center gap-2">
+        {[
+          { key: 'calendar', label: '日历项', count: scheduleTabCounts.calendar },
+          { key: 'inbox', label: '收件', count: scheduleTabCounts.inbox },
+          { key: 'sent', label: '发件', count: scheduleTabCounts.sent },
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setScheduleSection(item.key as 'calendar' | 'inbox' | 'sent')}
+            className={`flex-1 rounded-[34px] px-6 py-5 text-[32px] font-semibold transition ${scheduleSection === item.key ? 'bg-white text-nesio-accent shadow-card' : 'text-slate-500'}`}
+          >
+            {item.label} {item.count}
+          </button>
+        ))}
+      </div>
+
+      <input
+        value={scheduleSearch}
+        onChange={(e) => setScheduleSearch(e.target.value)}
+        placeholder={scheduleSection === 'calendar' ? '搜日程:标题、地点、日历名..' : '搜邮件:标题、发件人、正文..'}
+        className="w-full rounded-[36px] border border-nesio-border bg-white px-8 py-6 text-[30px] text-slate-400 outline-none"
+      />
+
+      <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
+        {(scheduleSection === 'calendar'
+          ? [
+              { key: 'all', label: '全部', count: scheduleTabCounts.calendar },
+              { key: 'todo', label: '待办', count: (detailQuery.data?.tasks ?? []).filter((item) => item.status !== 'done' && item.due_date).length },
+              { key: 'noDue', label: '无截止日期', count: (detailQuery.data?.tasks ?? []).filter((item) => !item.due_date).length },
+              { key: 'done', label: '看已完成的提醒', count: (detailQuery.data?.tasks ?? []).filter((item) => item.status === 'done').length },
+            ]
+          : [
+              { key: 'all', label: '全部', count: scheduleMailCards.length },
+              { key: 'notification', label: '通知', count: scheduleMailCards.filter((item) => /notification|notice|reminder/i.test(`${item.subject} ${item.snippet}`)).length },
+              { key: 'important', label: '重要', count: scheduleMailCards.filter((item) => /important|urgent|action|required/i.test(`${item.subject} ${item.snippet}`)).length },
+              ...(scheduleSection === 'sent'
+                ? [{ key: 'review', label: '评测', count: scheduleMailCards.filter((item) => /review|comment|feedback/i.test(`${item.subject} ${item.snippet}`)).length }]
+                : [{ key: 'billing', label: '订单', count: scheduleMailCards.filter((item) => /bill|invoice|receipt|refund|order|payment/i.test(`${item.subject} ${item.snippet}`)).length }]),
+            ]).map((chip) => (
+          <button
+            key={chip.key}
+            onClick={() => setScheduleFilter(chip.key as typeof scheduleFilter)}
+            className={`whitespace-nowrap rounded-full border px-8 py-4 text-[28px] transition ${scheduleFilter === chip.key ? 'border-[#e4c5bf] bg-[#f4e9e7] text-nesio-accent' : 'border-nesio-border bg-white text-slate-500'}`}
+          >
+            {chip.label} {chip.count}
+          </button>
+        ))}
+        {scheduleSection === 'sent' && (
+          <button className="rounded-full border border-dashed border-[#e4c5bf] px-7 py-4 text-[32px] text-nesio-accent">
+            <IconPlus className="w-7 h-7 inline-block" />
+          </button>
+        )}
+      </div>
+
+      {scheduleSection === 'sent' && (
+        <button className="w-full rounded-[34px] bg-[#c9837b] py-6 text-[34px] font-semibold text-white" onClick={() => gmailTo || gmailSubject || gmailBody ? gmailSendMutation.mutate() : null}>
+          写一封
+        </button>
+      )}
+
+      {scheduleSection === 'sent' && (
+        <div className="rounded-[28px] bg-white p-5 shadow-card space-y-3">
+          <input value={gmailTo} onChange={(e) => setGmailTo(e.target.value)} placeholder="发给谁" className="w-full rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
+          <input value={gmailSubject} onChange={(e) => setGmailSubject(e.target.value)} placeholder="主题" className="w-full rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
+          <textarea value={gmailBody} onChange={(e) => setGmailBody(e.target.value)} placeholder="正文" className="w-full min-h-28 rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {scheduleSection === 'calendar' && scheduleCards.map((item) => (
+          <div key={item.id} className="rounded-[28px] bg-white p-6 shadow-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-[30px] font-bold text-nesio-ink truncate">{item.title}</div>
+                <div className="mt-5 flex items-center gap-3 text-[20px] text-slate-500">
+                  <span>{item.meta}</span>
+                  {item.section === 'important' && <span className="rounded-full bg-[#dfeee6] px-4 py-1 text-[#6c9b80]">提醒</span>}
+                </div>
+                <div className="mt-4 text-[22px] text-slate-500 truncate">{item.subtitle}</div>
+              </div>
+              <div className="text-right text-[28px] text-slate-500 whitespace-pre-line">{item.date}</div>
+            </div>
+          </div>
+        ))}
+
+        {scheduleSection !== 'calendar' && scheduleMailCards.map((message) => (
+          <div key={message.id} className="rounded-[28px] bg-white p-6 shadow-card">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="text-[30px] font-bold text-nesio-ink truncate">{message.subject || '(无主题)'}</div>
+                <div className="mt-4 text-[22px] text-slate-500 truncate">{scheduleSection === 'sent' ? `发给 ${message.from}` : message.from}</div>
+                <div className="mt-4 text-[22px] text-slate-400 truncate">{message.snippet}</div>
+              </div>
+              <div className="text-right text-[28px] text-slate-500">8月2日</div>
+            </div>
+          </div>
+        ))}
+
+        {scheduleSection !== 'calendar' && gmailInboxQuery.isError && (
+          <div className="rounded-[28px] bg-white p-6 text-[24px] text-red-500 shadow-card">
+            还没有可用的 Gmail connector。先为 `gmail` 写入可用的 `access_token`。
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  if (selectedLabel === '日程') {
+    return renderScheduleWorkspace()
+  }
 
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
@@ -214,29 +401,6 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
           </div>
         </div>
 
-        {selectedLabel === '日程' && (
-          <div className="grid grid-cols-1 gap-4">
-            <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
-              <div className="text-sm font-semibold text-nesio-ink">Gmail 收件箱</div>
-              {(gmailInboxQuery.data?.messages ?? []).slice(0, 8).map((message) => (
-                <div key={message.id} className="rounded-xl bg-white px-3 py-3">
-                  <div className="text-xs text-nesio-muted">{message.from}</div>
-                  <div className="text-sm font-medium text-nesio-ink mt-1">{message.subject || '(无主题)'}</div>
-                  <div className="text-xs text-nesio-muted mt-1">{message.snippet}</div>
-                </div>
-              ))}
-              {gmailInboxQuery.isError && <div className="text-xs text-red-500">还没有可用的 Gmail connector，先在 Connectors 中写入 `access_token`。</div>}
-            </div>
-
-            <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
-              <div className="text-sm font-semibold text-nesio-ink">从 Nesio 发邮件</div>
-              <input value={gmailTo} onChange={(e) => setGmailTo(e.target.value)} placeholder="收件人邮箱" className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
-              <input value={gmailSubject} onChange={(e) => setGmailSubject(e.target.value)} placeholder="主题" className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
-              <textarea value={gmailBody} onChange={(e) => setGmailBody(e.target.value)} placeholder="正文" className="w-full min-h-28 rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
-              <button onClick={() => gmailTo && gmailSubject && gmailBody && gmailSendMutation.mutate()} className="px-4 py-2 rounded-full bg-nesio-accent text-white text-sm">发送邮件</button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
