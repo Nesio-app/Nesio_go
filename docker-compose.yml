@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nesio
+      POSTGRES_PASSWORD: nesio_dev
+      POSTGRES_DB: nesio
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nesio"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://nesio:nesio_dev@postgres:5432/nesio?sslmode=disable
+      - REDIS_URL=redis:6379
+      - QDRANT_URL=http://qdrant:6333
+      - JWT_SECRET=nesio_dev_secret_change_in_prod
+      - AI_SERVICE_URL=http://ai-service:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    command: ["go", "run", "./cmd/api"]
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - QDRANT_URL=http://qdrant:6333
+      - EMBEDDING_MODEL=BAAI/bge-m3
+    depends_on:
+      - qdrant
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgres://nesio:nesio_dev@postgres:5432/nesio?sslmode=disable
+      - REDIS_URL=redis:6379
+      - AI_SERVICE_URL=http://ai-service:8000
+      - JWT_SECRET=nesio_dev_secret_change_in_prod
+    depends_on:
+      - postgres
+      - redis
+    working_dir: /app
+    command: ["go", "run", "./cmd/worker"]
+
+volumes:
+  pg_data:
+  redis_data:
+  qdrant_data:

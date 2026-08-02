@@ -1,0 +1,83 @@
+package auth
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
+	"golang.org/x/crypto/bcrypt"
+)
+
+var jwtSecret = []byte("nesio_dev_secret_change_in_prod")
+
+type Claims struct {
+	UserID uuid.UUID `json:"user_id"`
+	Email  string    `json:"email"`
+	jwt.RegisteredClaims
+}
+
+func GenerateToken(userID uuid.UUID, email string) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		Email:  email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
+}
+
+func ParseToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+	return nil, fmt.Errorf("invalid token")
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func CheckPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func CreateUser(db *sqlx.DB, email, password string) (uuid.UUID, error) {
+	hash, err := HashPassword(password)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	var id uuid.UUID
+	err = db.QueryRow(
+		"INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id",
+		email, hash,
+	).Scan(&id)
+	return id, err
+}
+
+func AuthenticateUser(db *sqlx.DB, email, password string) (uuid.UUID, error) {
+	var user struct {
+		ID           uuid.UUID `db:"id"`
+		PasswordHash string    `db:"password_hash"`
+	}
+	err := db.Get(&user, "SELECT id, password_hash FROM users WHERE email = $1", email)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid credentials")
+	}
+	if !CheckPassword(password, user.PasswordHash) {
+		return uuid.Nil, fmt.Errorf("invalid credentials")
+	}
+	return user.ID, nil
+}
