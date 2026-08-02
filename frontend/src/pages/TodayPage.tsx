@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   IconCloud, IconMic, IconPlus, IconX
 } from '../icons'
-import { today } from '../api/client'
+import { tasks, today } from '../api/client'
 
 interface TodayCard {
   id: string
@@ -30,6 +30,8 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   void onSettings
   void onChat
   const [feeling, setFeeling] = useState('')
+  const [taskTitle, setTaskTitle] = useState('')
+  const [saveMessage, setSaveMessage] = useState('')
   const { data, isLoading } = useQuery<TodayResponse>({
     queryKey: ['today-cards'],
     queryFn: async () => {
@@ -40,6 +42,23 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
 
   const cards = data?.cards ?? []
   const primaryCard = cards[0]
+  const createTask = useMutation({
+    mutationFn: (title: string) => tasks.create({ title }),
+    onSuccess: () => {
+      setTaskTitle('')
+      setSaveMessage('已保存到任务。')
+    },
+    onError: () => setSaveMessage('保存失败，请重新登录后再试。'),
+  })
+
+  const submitTask = () => {
+    const title = taskTitle.trim()
+    if (!title || createTask.isPending) {
+      return
+    }
+    setSaveMessage('')
+    createTask.mutate(title)
+  }
 
   return (
     <div className="px-5 pt-6 pb-4 space-y-5">
@@ -98,20 +117,28 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
 
       {/* Input */}
       <div className="flex items-center gap-3">
-        <button className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-nesio-muted active:scale-95 transition">
+        <button onClick={submitTask} className="w-10 h-10 rounded-full bg-white shadow-card flex items-center justify-center text-nesio-muted active:scale-95 transition">
           <IconPlus className="w-5 h-5" />
         </button>
         <div className="flex-1 bg-white rounded-full px-4 py-2.5 shadow-card flex items-center">
           <input
             type="text"
-            placeholder=""
-            className="flex-1 bg-transparent outline-none text-sm"
+            value={taskTitle}
+            onChange={(event) => setTaskTitle(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                submitTask()
+              }
+            }}
+            placeholder="添加一个任务"
+            className="flex-1 bg-transparent outline-none text-sm text-nesio-ink placeholder:text-nesio-muted"
           />
         </div>
         <button className="w-10 h-10 rounded-full bg-nesio-accent flex items-center justify-center text-white active:scale-95 transition">
           <IconMic className="w-5 h-5" />
         </button>
       </div>
+      {saveMessage && <p className="-mt-3 pl-14 text-xs text-nesio-muted">{saveMessage}</p>}
 
       {/* Timeline */}
       <div className="space-y-4">

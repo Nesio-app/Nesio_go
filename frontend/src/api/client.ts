@@ -36,6 +36,7 @@ api.interceptors.response.use(
   (err: { response?: { status?: number } }) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
+      window.dispatchEvent(new Event('nesio:unauthorized'))
     }
     return Promise.reject(err)
   }

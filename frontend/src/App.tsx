@@ -5,16 +5,24 @@ import ChatPage from './pages/ChatPage'
 import MemoryPage from './pages/MemoryPage'
 import SettingsPage from './pages/SettingsPage'
 import DomainsPage from './pages/DomainsPage'
+import AuthPage from './pages/AuthPage'
 
 type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains'
 type ThemeMode = 'light' | 'dark'
 type Palette = 'dawn' | 'ocean' | 'forest'
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('token')))
   const [tab, setTab] = useState<Tab>('today')
   const [prevTab, setPrevTab] = useState<Tab>('today')
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem('nesio-theme-mode') as ThemeMode) || 'light')
   const [palette, setPalette] = useState<Palette>(() => (localStorage.getItem('nesio-palette') as Palette) || 'dawn')
+
+  useEffect(() => {
+    const handleUnauthorized = () => setIsAuthenticated(false)
+    window.addEventListener('nesio:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('nesio:unauthorized', handleUnauthorized)
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode
@@ -34,6 +42,10 @@ export default function App() {
 
   // 哪些页面显示 TabBar
   const showTabBar = ['today', 'memory', 'domains'].includes(tab)
+
+  if (!isAuthenticated) {
+    return <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />
+  }
 
   return (
     <div className="h-screen w-full max-w-md mx-auto bg-nesio-bg flex flex-col overflow-hidden relative">
