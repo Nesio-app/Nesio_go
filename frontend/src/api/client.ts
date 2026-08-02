@@ -1,21 +1,24 @@
-import axios from 'axios'
+import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' }
 })
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('token')
   if (token) {
+    config.headers = config.headers ?? {}
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore allow assignment to headers union
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
 api.interceptors.response.use(
-  (res) => res,
-  (err) => {
+  (res: AxiosResponse) => res,
+  (err: any) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
