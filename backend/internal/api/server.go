@@ -61,6 +61,8 @@ func (s *Server) registerRoutes() {
 	api.POST("/connectors/:provider/auth", s.handleConnectorAuth)
 	api.DELETE("/connectors/:id", s.handleDeleteConnector)
 	api.POST("/connectors/:id/sync", s.handleSyncConnector)
+	api.GET("/connectors/gmail/inbox", s.handleGmailInbox)
+	api.POST("/connectors/gmail/send", s.handleGmailSend)
 
 	// Signal ingestion
 	api.POST("/signals", s.handleCreateSignal)
@@ -69,6 +71,11 @@ func (s *Server) registerRoutes() {
 	api.GET("/memories", s.handleListMemories)
 	api.POST("/memories", s.handleCreateMemory)
 	api.GET("/domains/overview", s.handleDomainsOverview)
+	api.GET("/domains/:domain/detail", s.handleDomainDetail)
+	api.POST("/domains/:domain/tasks", s.handleCreateDomainTask)
+	api.POST("/domains/:domain/memories", s.handleCreateDomainMemory)
+	api.PATCH("/domains/:domain/nodes/:id", s.handleUpdateDomainNode)
+	api.DELETE("/domains/:domain/nodes/:id", s.handleDeleteDomainNode)
 
 	// User
 	api.GET("/me", s.handleGetMe)

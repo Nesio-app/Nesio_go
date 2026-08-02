@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconHeart, IconBox, IconCreditCard, IconCalendar,
   IconMapPin, IconActivity, IconUsers, IconHanger,
@@ -7,7 +7,7 @@ import {
   IconHome, IconBulb, IconPlay, IconSettings,
   IconMusic, IconGift
 } from '../icons'
-import { domains as domainsApi } from '../api/client'
+import { domains as domainsApi, gmail } from '../api/client'
 
 const domains = [
   { icon: IconHeart, label: '健康', color: 'text-red-400', focus: '睡眠、恢复、体检', metric: '恢复指数 78', checklist: ['记录睡眠', '补水 2L', '安排体检提醒'] },
@@ -41,7 +41,14 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
   void onToday
   void onMemory
   void onChat
+  const queryClient = useQueryClient()
   const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label']>('健康')
+  const [taskTitle, setTaskTitle] = useState('')
+  const [memoryTitle, setMemoryTitle] = useState('')
+  const [memoryBody, setMemoryBody] = useState('')
+  const [gmailTo, setGmailTo] = useState('')
+  const [gmailSubject, setGmailSubject] = useState('')
+  const [gmailBody, setGmailBody] = useState('')
   const selectedDomain = domains.find((domain) => domain.label === selectedLabel) ?? domains[0]
   const { data: overviewData } = useQuery({
     queryKey: ['domains-overview'],
@@ -50,7 +57,68 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
       return response.data as Array<{ label: string; task_count: number; memory_count: number; urgent_count: number; latest_titles: string[] }>
     },
   })
+  const detailQuery = useQuery({
+    queryKey: ['domain-detail', selectedLabel],
+    queryFn: async () => {
+      const response = await domainsApi.detail(selectedLabel)
+      return response.data as {
+        domain: string
+        tasks: Array<{ id: string; title: string; status: string; due_date?: string | null }>
+        memory: Array<{ id: string; title: string; body?: string | null }>
+        today: Array<{ id: string; title: string; severity: number; body?: string | null }>
+      }
+    },
+  })
+  const gmailInboxQuery = useQuery({
+    queryKey: ['gmail-inbox', selectedLabel],
+    enabled: selectedLabel === '日程',
+    queryFn: async () => {
+      const response = await gmail.inbox()
+      return response.data as { messages: Array<{ id: string; from: string; subject: string; snippet: string }> }
+    },
+  })
   const selectedOverview = overviewData?.find((item) => item.label === selectedLabel)
+  const createTaskMutation = useMutation({
+    mutationFn: async () => domainsApi.createTask(selectedLabel, { title: taskTitle }),
+    onSuccess: async () => {
+      setTaskTitle('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['today-cards'] }),
+      ])
+    },
+  })
+  const createMemoryMutation = useMutation({
+    mutationFn: async () => domainsApi.createMemory(selectedLabel, { title: memoryTitle, body: memoryBody }),
+    onSuccess: async () => {
+      setMemoryTitle('')
+      setMemoryBody('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
+        queryClient.invalidateQueries({ queryKey: ['memories'] }),
+      ])
+    },
+  })
+  const deleteNodeMutation = useMutation({
+    mutationFn: async ({ id }: { id: string }) => domainsApi.deleteNode(selectedLabel, id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
+      ])
+    },
+  })
+  const gmailSendMutation = useMutation({
+    mutationFn: async () => gmail.send({ to: gmailTo, subject: gmailSubject, body: gmailBody }),
+    onSuccess: async () => {
+      setGmailTo('')
+      setGmailSubject('')
+      setGmailBody('')
+      await gmailInboxQuery.refetch()
+    },
+  })
 
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
@@ -105,6 +173,70 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
             </div>
           )}
         </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+            <div className="text-sm font-semibold text-nesio-ink">新增任务</div>
+            <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder={`给${selectedLabel}新增一个任务`} className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+            <button onClick={() => taskTitle.trim() && createTaskMutation.mutate()} className="px-4 py-2 rounded-full bg-nesio-accent text-white text-sm">创建任务</button>
+          </div>
+
+          <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+            <div className="text-sm font-semibold text-nesio-ink">新增记忆</div>
+            <input value={memoryTitle} onChange={(e) => setMemoryTitle(e.target.value)} placeholder={`给${selectedLabel}新增一条记忆标题`} className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+            <textarea value={memoryBody} onChange={(e) => setMemoryBody(e.target.value)} placeholder="补充正文" className="w-full min-h-24 rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+            <button onClick={() => memoryTitle.trim() && createMemoryMutation.mutate()} className="px-4 py-2 rounded-full bg-nesio-accent text-white text-sm">创建记忆</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+            <div className="text-sm font-semibold text-nesio-ink">领域任务</div>
+            {(detailQuery.data?.tasks ?? []).slice(0, 6).map((task) => (
+              <div key={task.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
+                <div>
+                  <div className="text-sm text-nesio-ink">{task.title}</div>
+                  <div className="text-xs text-nesio-muted">{task.status}</div>
+                </div>
+                <button onClick={() => deleteNodeMutation.mutate({ id: task.id })} className="text-xs text-nesio-muted">删除</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+            <div className="text-sm font-semibold text-nesio-ink">领域记忆</div>
+            {(detailQuery.data?.memory ?? []).slice(0, 6).map((item) => (
+              <div key={item.id} className="rounded-xl bg-white px-3 py-2">
+                <div className="text-sm text-nesio-ink">{item.title}</div>
+                {item.body && <div className="text-xs text-nesio-muted mt-1">{item.body}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {selectedLabel === '日程' && (
+          <div className="grid grid-cols-1 gap-4">
+            <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+              <div className="text-sm font-semibold text-nesio-ink">Gmail 收件箱</div>
+              {(gmailInboxQuery.data?.messages ?? []).slice(0, 8).map((message) => (
+                <div key={message.id} className="rounded-xl bg-white px-3 py-3">
+                  <div className="text-xs text-nesio-muted">{message.from}</div>
+                  <div className="text-sm font-medium text-nesio-ink mt-1">{message.subject || '(无主题)'}</div>
+                  <div className="text-xs text-nesio-muted mt-1">{message.snippet}</div>
+                </div>
+              ))}
+              {gmailInboxQuery.isError && <div className="text-xs text-red-500">还没有可用的 Gmail connector，先在 Connectors 中写入 `access_token`。</div>}
+            </div>
+
+            <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">
+              <div className="text-sm font-semibold text-nesio-ink">从 Nesio 发邮件</div>
+              <input value={gmailTo} onChange={(e) => setGmailTo(e.target.value)} placeholder="收件人邮箱" className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+              <input value={gmailSubject} onChange={(e) => setGmailSubject(e.target.value)} placeholder="主题" className="w-full rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+              <textarea value={gmailBody} onChange={(e) => setGmailBody(e.target.value)} placeholder="正文" className="w-full min-h-28 rounded-xl border border-nesio-border bg-white px-3 py-2 text-sm outline-none" />
+              <button onClick={() => gmailTo && gmailSubject && gmailBody && gmailSendMutation.mutate()} className="px-4 py-2 rounded-full bg-nesio-accent text-white text-sm">发送邮件</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

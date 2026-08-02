@@ -18,13 +18,15 @@ type CreateMemoryRequest struct {
 
 func (s *Server) handleListMemories(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
+	domain := c.QueryParam("domain")
 	var nodes []models.LifeNode
 	err := s.store.DB.Select(&nodes, `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
 		WHERE user_id = $1 AND type = 'memory'
+		AND ($2 = '' OR domain = $2)
 		ORDER BY created_at DESC
-	`, userID)
+	`, userID, domain)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -37,17 +39,26 @@ func (s *Server) handleCreateMemory(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+	return s.createMemoryForUser(c, userID, req, nil)
+}
 
+
+func (s *Server) createMemoryForUser(c echo.Context, userID uuid.UUID, req CreateMemoryRequest, domain *string) error {
+	tags := pq.StringArray(req.Tags)
+	if tags == nil {
+		tags = pq.StringArray{}
+	}
 	node := models.LifeNode{
 		UserID: userID,
 		Type:   "memory",
 		Title:  req.Title,
 		Status: "active",
-		Tags:   pq.StringArray(req.Tags),
+		Tags:   tags,
 		Attributes: models.JSONMap{"source_text": req.Body},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
+	node.Domain = domain
 
 	if req.Body != "" {
 		summary := req.Body
@@ -65,6 +76,10 @@ func (s *Server) handleCreateMemory(c echo.Context) error {
 	`, node.UserID, node.Type, node.Title, node.Body, node.Status, pq.Array(node.Tags), node.Attributes, node.CreatedAt, node.UpdatedAt).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if node.Domain != nil {
+		_, _ = s.store.DB.Exec(`UPDATE life_nodes SET domain = $1 WHERE id = $2 AND user_id = $3`, *node.Domain, id, userID)
+		_ = s.insertTodayReflection(userID, *node.Domain, node.Title, node.Body, id)
 	}
 
 	return c.JSON(http.StatusCreated, map[string]any{"id": id})

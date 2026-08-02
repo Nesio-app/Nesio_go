@@ -30,13 +30,21 @@ func (s *Server) handleCreateTask(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
+	return s.createTaskForUser(c, userID, req)
+}
 
+
+func (s *Server) createTaskForUser(c echo.Context, userID uuid.UUID, req CreateTaskRequest) error {
+	tags := pq.StringArray(req.Tags)
+	if tags == nil {
+		tags = pq.StringArray{}
+	}
 	node := models.LifeNode{
 		UserID: userID,
 		Type:   "task",
 		Title:  req.Title,
 		Status: "active",
-		Tags:   pq.StringArray(req.Tags),
+		Tags:   tags,
 	}
 	if req.Type != "" {
 		node.Type = req.Type
@@ -56,6 +64,9 @@ func (s *Server) handleCreateTask(c echo.Context) error {
 	`, node.UserID, node.Type, node.Domain, node.Title, node.Status, node.DueDate, pq.Array(node.Tags)).Scan(&id)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if node.Domain != nil {
+		_ = s.insertTodayReflection(userID, *node.Domain, node.Title, node.Body, id)
 	}
 
 	return c.JSON(http.StatusCreated, map[string]any{"id": id})
@@ -89,14 +100,17 @@ func (s *Server) handleListTasks(c echo.Context) error {
 	if status == "" {
 		status = "active"
 	}
+	domain := c.QueryParam("domain")
 
 	var nodes []models.LifeNode
-	err := s.store.DB.Select(&nodes, `
+	query := `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
 		WHERE user_id = $1 AND status = $2
+		AND ($3 = '' OR domain = $3)
 		ORDER BY due_date ASC NULLS LAST, created_at DESC
-	`, userID, status)
+	`
+	err := s.store.DB.Select(&nodes, query, userID, status, domain)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

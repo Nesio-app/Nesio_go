@@ -86,6 +86,12 @@ export const connectors = {
     api.post(`/connectors/${id}/sync`),
 }
 
+export const gmail = {
+  inbox: () => api.get('/connectors/gmail/inbox'),
+  send: (data: { to: string; subject: string; body: string }) =>
+    api.post('/connectors/gmail/send', data),
+}
+
 export const memories = {
   list: () => api.get('/memories'),
   create: (data: { title: string; body?: string; tags?: string[] }) =>
@@ -94,6 +100,14 @@ export const memories = {
 
 export const domains = {
   overview: () => api.get('/domains/overview'),
+  detail: (domain: string) => api.get(`/domains/${encodeURIComponent(domain)}/detail`),
+  createTask: (domain: string, data: { title: string; due_date?: string | null; tags?: string[] }) =>
+    api.post(`/domains/${encodeURIComponent(domain)}/tasks`, data),
+  createMemory: (domain: string, data: { title: string; body?: string; tags?: string[] }) =>
+    api.post(`/domains/${encodeURIComponent(domain)}/memories`, data),
+  updateNode: (domain: string, id: string, data: { title?: string; body?: string; status?: string; due_date?: string | null }) =>
+    api.patch(`/domains/${encodeURIComponent(domain)}/nodes/${id}`, data),
+  deleteNode: (domain: string, id: string) => api.delete(`/domains/${encodeURIComponent(domain)}/nodes/${id}`),
 }
 
 export const user = {
