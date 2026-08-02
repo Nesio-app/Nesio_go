@@ -1,10 +1,9 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import TodayPage from './pages/Today'
-import TasksPage from './pages/Tasks'
+import MemoryPage from './pages/Memory'
 import ChatPage from './pages/Chat'
 import LoginPage from './pages/Login'
-import SettingsPage from './pages/Settings'
 
 function App() {
   return (
@@ -12,12 +11,10 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<TodayPage />} />
-        <Route path="tasks" element={<TasksPage />} />
+        <Route path="memory" element={<MemoryPage />} />
         <Route path="chat" element={<ChatPage />} />
-        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   )
 }
-
 export default App

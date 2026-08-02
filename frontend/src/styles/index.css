@@ -1,64 +1,65 @@
 @import "tailwindcss";
 
 @theme {
-  --color-portal-blue: #588ce3;
-  --color-portal-ink: #1e2a3a;
-  --color-status-go: #5a9e7a;
-  --color-status-risk: #cf6b6b;
-  --color-bg-base: #f8f9fa;
-  --color-bg-card: #ffffff;
-  --color-text-primary: #1e2a3a;
-  --color-text-secondary: #6b7280;
-  --color-border: #e5e7eb;
-  --font-sans: 'Noto Sans SC', system-ui, sans-serif;
+  --color-sky-primary: #6B9FD4;
+  --color-sky-light: #8BB8E8;
+  --color-bg-base: #7BA7E1;
+  --color-bg-card: #FFFFFF;
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #64748B;
+  --color-text-tertiary: #94A3B8;
+  --font-sans: -apple-system, 'SF Pro Display', 'PingFang SC', system-ui, sans-serif;
 }
 
 body {
-  background-color: var(--color-bg-base);
-  color: var(--color-text-primary);
+  background: linear-gradient(180deg, #7BA7E1 0%, #A8C8F0 40%, #E8F0F8 100%);
+  min-height: 100vh;
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-.card {
-  background: var(--color-bg-card);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.card-pinned {
-  border-left: 4px solid var(--color-status-risk);
-}
-
-.card-guidance {
-  border-left: 4px solid var(--color-portal-blue);
-}
-
-.card-task {
-  border-left: 4px solid var(--color-status-go);
-}
-
-.btn-primary {
-  background: var(--color-portal-blue);
+.card-featured {
+  background: linear-gradient(135deg, #6B9FD4, #8BB8E8);
+  border-radius: 24px;
+  padding: 20px;
   color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: opacity 0.2s;
 }
 
-.btn-primary:hover {
-  opacity: 0.9;
+.card-white {
+  background: white;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
 }
 
-.btn-ghost {
-  background: transparent;
-  color: var(--color-text-secondary);
-  padding: 8px 16px;
-  border-radius: 8px;
+.nav-center {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #7BA7E1, #A8C8F0);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(107,159,212,0.35);
+  border: 3px solid white;
+  margin-top: -16px;
 }
 
-.btn-ghost:hover {
-  background: var(--color-bg-base);
+.bottom-nav {
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #6B9FD4;
 }

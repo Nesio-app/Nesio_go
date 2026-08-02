@@ -18,46 +18,29 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token)
       nav('/')
     } catch (err: any) {
-      setError(err.response?.data?.message || '请求失败')
+      setError(err.response?.data?.message || 'Failed')
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-6" style={{background: 'linear-gradient(180deg, #7BA7E1, #A8C8F0)'}}>
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-center mb-8 text-[var(--color-portal-ink)]">
-          Nesio
-        </h1>
+        <div className="flex justify-center mb-8">
+          <div className="w-20 h-20 rounded-3xl bg-white/90 flex items-center justify-center shadow-lg">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="#6B9FD4"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold text-center mb-2 text-white drop-shadow">Nesio</h1>
+        <p className="text-center text-white/80 mb-8 text-sm">Less tracking. More living.</p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="email"
-            placeholder="邮箱"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-portal-blue)]"
-            required
-          />
-          <input
-            type="password"
-            placeholder="密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-[var(--color-border)] bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-portal-blue)]"
-            required
-          />
-          {error && <p className="text-sm text-[var(--color-status-risk)]">{error}</p>}
-          <button type="submit" className="w-full btn-primary py-3">
-            {isLogin ? '登录' : '注册'}
-          </button>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-5 py-4 rounded-2xl bg-white/95 border-none outline-none text-[15px] shadow-sm" required />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-4 rounded-2xl bg-white/95 border-none outline-none text-[15px] shadow-sm" required />
+          {error && <p className="text-sm text-red-200">{error}</p>}
+          <button type="submit" className="w-full py-4 rounded-2xl bg-white text-[#6B9FD4] font-bold text-[15px] shadow-lg">{isLogin ? 'Sign In' : 'Sign Up'}</button>
         </form>
-        <p className="text-center mt-4 text-sm text-[var(--color-text-secondary)]">
-          {isLogin ? '没有账号？' : '已有账号？'}
-          <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-[var(--color-portal-blue)] ml-1 font-medium"
-          >
-            {isLogin ? '注册' : '登录'}
-          </button>
+        <p className="text-center mt-6 text-sm text-white/80">
+          {isLogin ? 'No account?' : 'Have account?'}
+          <button onClick={() => setIsLogin(!isLogin)} className="text-white ml-1 font-bold underline">{isLogin ? 'Sign Up' : 'Sign In'}</button>
         </p>
       </div>
     </div>
