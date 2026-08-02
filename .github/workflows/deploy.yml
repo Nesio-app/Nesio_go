@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Railway watches this repo and deploys automatically on push to main.
+# This workflow acts as a test gate: Railway only proceeds if tests pass.
+# To block Railway on failure, disable auto-deploy in Railway dashboard
+# and use the "Trigger Deploy" step below instead.
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+      - run: go build ./cmd/api ./cmd/worker
+      - run: go test ./...
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  # Optional: trigger Railway deploy only after tests pass.
+  # Enable this by setting RAILWAY_TOKEN in GitHub Secrets and
+  # setting each service to "Manual Deploy" in the Railway dashboard.
+  deploy:
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy API
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service nesio-api --detach
+        working-directory: backend
+        continue-on-error: true
+      - name: Deploy Worker
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service nesio-worker --detach
+        working-directory: backend
+        continue-on-error: true
+      - name: Deploy AI Service
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service nesio-ai --detach
+        working-directory: ai-service
+        continue-on-error: true
