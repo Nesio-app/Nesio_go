@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/Nesio-app/Nesio_go/internal/models"
@@ -29,6 +28,11 @@ func (s *Server) handleUpdateMe(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-	// Simplified: just return current user for now
+	if req.Timezone != nil {
+		_, err := s.store.DB.Exec("UPDATE users SET timezone = $1 WHERE id = $2", *req.Timezone, userID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+	}
 	return s.handleGetMe(c)
 }
