@@ -2,25 +2,35 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/Nesio-app/Nesio_go/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/Nesio-app/Nesio_go/internal/models"
 )
 
 func (s *Server) handleGetToday(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
 	localDay := c.QueryParam("local_day")
 	if localDay == "" {
-		localDay = time.Now().Format("2006-01-02")
+		localDay = s.getUserLocalDay(userID)
+	}
+
+	slot := c.QueryParam("slot")
+	minSeverityStr := c.QueryParam("min_severity")
+	minSeverity := 0
+	if minSeverityStr != "" {
+		minSeverity, _ = strconv.Atoi(minSeverityStr)
 	}
 
 	var cards []models.TodayCard
-	err := s.store.DB.Select(&cards, `
+	query := `
 		SELECT id, user_id, local_day, slot, node_id, title, body, severity, action_label, fingerprints, dismissed_at, created_at
 		FROM today_cards
 		WHERE user_id = $1 AND local_day = $2 AND dismissed_at IS NULL
+		AND ($3 = '' OR slot = $3)
+		AND ($4::int = 0 OR severity >= $4::int)
 		ORDER BY 
 			CASE slot 
 				WHEN 'pinned' THEN 0 
@@ -29,11 +39,25 @@ func (s *Server) handleGetToday(c echo.Context) error {
 			END,
 			severity DESC,
 			created_at ASC
-	`, userID, localDay)
+	`
+	err := s.store.DB.Select(&cards, query, userID, localDay, slot, minSeverity)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(http.StatusOK, map[string]any{"cards": cards, "local_day": localDay})
+}
+
+func (s *Server) getUserLocalDay(userID uuid.UUID) string {
+	var timezone string
+	err := s.store.DB.Get(&timezone, "SELECT timezone FROM users WHERE id = $1", userID)
+	if err != nil || timezone == "" {
+		timezone = "Asia/Shanghai"
+	}
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		loc = time.FixedZone("UTC", 0)
+	}
+	return time.Now().In(loc).Format("2006-01-02")
 }
 
 func (s *Server) handleDismissCard(c echo.Context) error {

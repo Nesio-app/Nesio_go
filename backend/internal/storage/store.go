@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -130,6 +132,17 @@ CREATE TABLE IF NOT EXISTS memory_embeddings (
     content_preview text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS kv_store (
+    key text PRIMARY KEY,
+    value jsonb NOT NULL,
+    tier text NOT NULL,
+    expires_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_kv_store_tier ON kv_store(tier);
+CREATE INDEX IF NOT EXISTS idx_kv_store_expires_at ON kv_store(expires_at);
 `
 	_, err := s.DB.Exec(schema)
 	return err
@@ -143,15 +156,68 @@ const (
 	TierSession StorageTier = "session"
 )
 
+type SetOptions struct {
+	TTL  time.Duration
+	Tier StorageTier
+}
+
 func (s *Store) Set(ctx context.Context, key string, value any, tier StorageTier, ttl time.Duration) error {
 	switch tier {
 	case TierCache, TierSession:
 		return s.RDB.Set(ctx, key, value, ttl).Err()
+	case TierDurable:
+		payload, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		var expiresAt *time.Time
+		if ttl > 0 {
+			t := time.Now().Add(ttl)
+			expiresAt = &t
+		}
+		_, err = s.DB.Exec(`
+			INSERT INTO kv_store (key, value, tier, expires_at, updated_at)
+			VALUES ($1, $2, $3, $4, now())
+			ON CONFLICT (key) DO UPDATE SET value = $2, tier = $3, expires_at = $4, updated_at = now()
+		`, key, payload, string(tier), expiresAt)
+		return err
 	default:
-		return nil
+		return fmt.Errorf("unsupported storage tier: %s", tier)
 	}
 }
 
-func (s *Store) Get(ctx context.Context, key string) (string, error) {
-	return s.RDB.Get(ctx, key).Result()
+func (s *Store) Get(ctx context.Context, key string, tier StorageTier) (string, error) {
+	switch tier {
+	case TierCache, TierSession:
+		return s.RDB.Get(ctx, key).Result()
+	case TierDurable:
+		var raw sql.NullString
+		err := s.DB.Get(&raw, `
+			SELECT value::text
+			FROM kv_store
+			WHERE key = $1
+			AND (expires_at IS NULL OR expires_at > now())
+		`, key)
+		if err != nil {
+			return "", err
+		}
+		if !raw.Valid {
+			return "", sql.ErrNoRows
+		}
+		return raw.String, nil
+	default:
+		return "", fmt.Errorf("unsupported storage tier: %s", tier)
+	}
+}
+
+func (s *Store) Delete(ctx context.Context, key string, tier StorageTier) error {
+	switch tier {
+	case TierCache, TierSession:
+		return s.RDB.Del(ctx, key).Err()
+	case TierDurable:
+		_, err := s.DB.Exec(`DELETE FROM kv_store WHERE key = $1`, key)
+		return err
+	default:
+		return fmt.Errorf("unsupported storage tier: %s", tier)
+	}
 }

@@ -39,6 +39,11 @@ export default function Layout() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
           <span className="text-[11px] font-medium">Memory</span>
         </button>
+
+        <button onClick={() => nav('/connectors')} className={`flex flex-col items-center gap-1 ${loc.pathname === '/connectors' ? 'text-[#6B9FD4]' : 'text-[#94A3B8]'}`}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a4 4 0 0 1 4 4v3h3a4 4 0 0 1 0 8h-3v3a4 4 0 0 1-8 0v-3H5a4 4 0 0 1 0-8h3V6a4 4 0 0 1 4-4z"/></svg>
+          <span className="text-[11px] font-medium">Connectors</span>
+        </button>
       </nav>
     </div>
   )

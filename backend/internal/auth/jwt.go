@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("nesio_dev_secret_change_in_prod")
+var jwtSecret = []byte(getJWTSecret())
 
 type Claims struct {
 	UserID uuid.UUID `json:"user_id"`
@@ -29,6 +30,13 @@ func GenerateToken(userID uuid.UUID, email string) (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
+}
+
+func getJWTSecret() string {
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return secret
+	}
+	return "nesio_dev_secret_change_in_prod"
 }
 
 func ParseToken(tokenString string) (*Claims, error) {

@@ -1,25 +1,25 @@
 package api
 
 import (
-	"net/http"
+	"context"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/Nesio-app/Nesio_go/internal/auth"
+	"github.com/Nesio-app/Nesio_go/internal/middleware"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
+	"github.com/labstack/echo/v4"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 )
 
 type Server struct {
-	e   *echo.Echo
+	e     *echo.Echo
 	store *storage.Store
 }
 
 func NewServer(store *storage.Store) *Server {
 	e := echo.New()
 	e.HideBanner = true
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(echomiddleware.Logger())
+	e.Use(echomiddleware.Recover())
+	e.Use(echomiddleware.CORS())
 
 	s := &Server{e: e, store: store}
 	s.registerRoutes()
@@ -31,14 +31,13 @@ func (s *Server) registerRoutes() {
 	s.e.POST("/api/v1/auth/register", s.handleRegister)
 	s.e.POST("/api/v1/auth/login", s.handleLogin)
 
+	// Public OAuth callback / authorization simulation
+	s.e.GET("/api/v1/connectors/:provider/authorize", s.handleConnectorAuthorize)
+	s.e.GET("/api/v1/connectors/:provider/callback", s.handleConnectorCallback)
+
 	// Protected
 	api := s.e.Group("/api/v1")
-	api.Use(middleware.JWTWithConfig(middleware.JWTConfig{
-		SigningKey: []byte("nesio_dev_secret_change_in_prod"),
-		Skipper: func(c echo.Context) bool {
-			return c.Path() == "/api/v1/auth/register" || c.Path() == "/api/v1/auth/login"
-		},
-	}))
+	api.Use(middleware.JWTAuth)
 
 	// Today
 	api.GET("/today", s.handleGetToday)
@@ -60,6 +59,13 @@ func (s *Server) registerRoutes() {
 	api.POST("/connectors/:provider/auth", s.handleConnectorAuth)
 	api.DELETE("/connectors/:id", s.handleDeleteConnector)
 	api.POST("/connectors/:id/sync", s.handleSyncConnector)
+
+	// Signal ingestion
+	api.POST("/signals", s.handleCreateSignal)
+
+	// Memory
+	api.GET("/memories", s.handleListMemories)
+	api.POST("/memories", s.handleCreateMemory)
 
 	// User
 	api.GET("/me", s.handleGetMe)

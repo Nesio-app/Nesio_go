@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 )
 
@@ -64,5 +65,9 @@ func (w *Worker) runDailyCleanup() {
 		log.Printf("cleanup archive error: %v", err)
 	}
 
-	log.Println("Daily cleanup completed")
+	if err := connector.SyncAllConnectors(w.ctx, w.store.DB); err != nil {
+		log.Printf("connector sync error: %v", err)
+	}
+
+	log.Println("Daily cleanup and connector sync completed")
 }
