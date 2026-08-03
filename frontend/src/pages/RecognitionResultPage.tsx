@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { containers, items, rooms } from '../api/client'
+import DuplicateAlert from '../components/DuplicateAlert'
 
 interface AnalyzeResult {
   extraction: Record<string, any>
@@ -22,6 +23,7 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
   const [price, setPrice] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [reminderLabel, setReminderLabel] = useState('服药提醒')
+  const [shouldCreateNew, setShouldCreateNew] = useState(result.duplicates.length === 0)
 
   const roomsQuery = useQuery({
     queryKey: ['rooms'],
@@ -59,6 +61,28 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
         tags: Array.isArray(result.extraction?.tags) ? result.extraction.tags : ['拍照识别'],
         primary_image_url: previewUrl,
       })
+    },
+    onSuccess: () => onClose(),
+  })
+
+  const mergeDuplicateMutation = useMutation({
+    mutationFn: async (targetItemId: string) => {
+      await items.create({
+        name: name || '未命名物品',
+        body: description || undefined,
+        room_id: roomId || undefined,
+        container_id: containerId || undefined,
+        expiry_date: expiryDate || undefined,
+        quantity: 1,
+        unit: '个',
+        visual_hash: result.visual_hash,
+        reminder_label: reminderLabel || undefined,
+        tags: Array.isArray(result.extraction?.tags) ? result.extraction.tags : ['拍照识别'],
+        primary_image_url: previewUrl,
+      }).then((res) => res.data as { id: string })
+        .then(async (created) => {
+          await items.duplicate(created.id, targetItemId, 1)
+        })
     },
     onSuccess: () => onClose(),
   })
@@ -128,24 +152,23 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
             <button onClick={() => setReminderLabel('')} className="text-xl text-nesio-muted">×</button>
           </div>
           <div className="type-body text-nesio-muted">建议地点: {locationPlaceholder}</div>
-          {result.duplicates.length > 0 && (
-            <div className="rounded-xl border border-nesio-accentLight bg-nesio-accentSoft px-4 py-3">
-              <div className="type-title text-nesio-accent">家里已有相似物品</div>
-              {result.duplicates.slice(0, 2).map((dup, idx) => (
-                <div key={`${dup.id ?? idx}`} className="mt-2 type-caption text-nesio-muted">
-                  {dup.name ?? '已存在物品'}
-                </div>
-              ))}
-            </div>
+          {result.duplicates.length > 0 && !shouldCreateNew && (
+            <DuplicateAlert
+              duplicates={result.duplicates}
+              onUpdate={(targetItemId) => mergeDuplicateMutation.mutate(targetItemId)}
+              onCreateNew={() => setShouldCreateNew(true)}
+              onCancel={onClose}
+              isPending={mergeDuplicateMutation.isPending}
+            />
           )}
         </section>
 
         <button
           onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
+          disabled={saveMutation.isPending || mergeDuplicateMutation.isPending || (!shouldCreateNew && result.duplicates.length > 0)}
           className="ui-btn-primary w-full"
         >
-          {saveMutation.isPending ? '保存中...' : '保存物品'}
+          {saveMutation.isPending ? '保存中...' : shouldCreateNew ? '保存物品' : '请选择“更新现有记录”或“这是新的”'}
         </button>
       </div>
     </div>

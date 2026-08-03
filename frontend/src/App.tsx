@@ -9,8 +9,9 @@ import ItemsPage from './pages/ItemsPage'
 import AuthPage from './pages/AuthPage'
 import CapturePage from './pages/CapturePage'
 import RecognitionResultPage from './pages/RecognitionResultPage'
+import ItemDetailPage from './pages/ItemDetailPage'
 
-type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items'
+type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items' | 'item-detail'
 type ThemeMode = 'light' | 'dark'
 type Palette = 'dawn' | 'ocean' | 'forest'
 
@@ -19,6 +20,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today')
   const [prevTab, setPrevTab] = useState<Tab>('today')
   const [captureRequestToken, setCaptureRequestToken] = useState(0)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [capturePayload, setCapturePayload] = useState<{
     file: File
     previewUrl: string
@@ -52,6 +54,8 @@ export default function App() {
   const goBack = () => {
     setTab(prevTab)
   }
+
+  const tabBarActiveTab = tab === 'today' || tab === 'items' ? tab : 'today'
 
   // 哪些页面显示 TabBar
   const showTabBar = ['today', 'memory', 'domains', 'items'].includes(tab)
@@ -88,7 +92,23 @@ export default function App() {
           />
         )}
         {tab === 'domains' && <DomainsPage onToday={() => navigate('today')} />}
-        {tab === 'items' && <ItemsPage />}
+        {tab === 'items' && (
+          <ItemsPage
+            onOpenItem={(itemId) => {
+              setSelectedItemId(itemId)
+              setPrevTab('items')
+              setTab('item-detail')
+            }}
+          />
+        )}
+        {tab === 'item-detail' && selectedItemId && (
+          <ItemDetailPage
+            itemId={selectedItemId}
+            onBack={() => {
+              setTab('items')
+            }}
+          />
+        )}
         {tab === 'capture' && (
           <CapturePage
             onClose={() => setTab(prevTab)}
@@ -112,7 +132,7 @@ export default function App() {
       </main>
       {showTabBar && (
         <TabBar
-          active={tab}
+          active={tabBarActiveTab}
           onCameraPress={() => {
             setPrevTab(tab)
             setCaptureRequestToken((current) => current + 1)

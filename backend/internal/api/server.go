@@ -86,6 +86,7 @@ func (s *Server) registerRoutes() {
 	api.POST("/items/where-is-photo", s.handleWhereIsItemPhoto)
 	api.GET("/items/expiring", s.handleListExpiringItems)
 	api.GET("/items/documents", s.handleListDocuments)
+	api.POST("/items/:id/duplicate", s.handleMarkItemDuplicate)
 	api.POST("/items/:id/snooze-expiry", s.handleSnoozeExpiry)
 	api.GET("/items/:id", s.handleGetItem)
 	api.PATCH("/items/:id", s.handleUpdateItem)

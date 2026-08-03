@@ -750,6 +750,85 @@ func (s *Server) handleListDocuments(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
+func (s *Server) handleMarkItemDuplicate(c echo.Context) error {
+	userID := c.Get("user_id").(uuid.UUID)
+	sourceID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+	}
+
+	var req struct {
+		TargetItemID string `json:"target_item_id"`
+		Increment    int    `json:"increment"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	targetID, err := uuid.Parse(strings.TrimSpace(req.TargetItemID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid target_item_id")
+	}
+	if sourceID == targetID {
+		return echo.NewHTTPError(http.StatusBadRequest, "source and target cannot be same")
+	}
+
+	increment := req.Increment
+	if increment <= 0 {
+		increment = 1
+	}
+
+	tx, err := s.store.DB.Beginx()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	defer tx.Rollback()
+
+	var sourceOwned bool
+	if err := tx.Get(&sourceOwned, `
+		SELECT EXISTS(
+			SELECT 1 FROM life_nodes
+			WHERE id = $1 AND user_id = $2 AND type = 'thing'
+		)
+	`, sourceID, userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if !sourceOwned {
+		return echo.NewHTTPError(http.StatusNotFound, "source item not found")
+	}
+
+	var targetOwned bool
+	if err := tx.Get(&targetOwned, `
+		SELECT EXISTS(
+			SELECT 1 FROM life_nodes
+			WHERE id = $1 AND user_id = $2 AND type = 'thing'
+		)
+	`, targetID, userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if !targetOwned {
+		return echo.NewHTTPError(http.StatusNotFound, "target item not found")
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE item_details
+		SET quantity = COALESCE(quantity, 0) + $1,
+		    updated_at = now()
+		WHERE node_id = $2
+	`, increment, targetID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	if _, err := tx.Exec(`DELETE FROM life_nodes WHERE id = $1 AND user_id = $2 AND type = 'thing'`, sourceID, userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	if err := tx.Commit(); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{"status": "merged", "target_item_id": targetID, "increment": increment})
+}
+
 func (s *Server) handleSnoozeExpiry(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
 	id, err := uuid.Parse(c.Param("id"))

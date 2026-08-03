@@ -162,6 +162,9 @@ export const items = {
   },
   expiring: () => api.get('/items/expiring'),
   documents: () => api.get('/items/documents'),
+  duplicate: (id: string, targetItemId: string, increment = 1) =>
+    api.post(`/items/${id}/duplicate`, { target_item_id: targetItemId, increment }),
+  snoozeExpiry: (id: string) => api.post(`/items/${id}/snooze-expiry`),
   analyze: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
