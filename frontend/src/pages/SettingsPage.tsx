@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   IconSun, IconShield, IconGift, IconHelp, IconBulb, IconChevronRight,
   IconSettings, IconArrowLeft
 } from '../icons'
-import { connectors as connectorsApi } from '../api/client'
+import { connectors as connectorsApi, dailyBriefs, dataExport } from '../api/client'
 
 const menuItems = [
   { icon: IconSun, label: '外观与语言' },
@@ -30,6 +30,33 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
     },
   })
   const gmailConnected = connectorListQuery.data?.some((c) => c.provider === 'gmail' && c.is_active)
+
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const response = await dataExport.run()
+      return response.data as Record<string, any>
+    },
+    onSuccess: (payload) => {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `nesio-export-${new Date().toISOString().slice(0, 10)}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+    },
+  })
+
+  const markBriefReadMutation = useMutation({
+    mutationFn: async () => {
+      const brief = await dailyBriefs.byDay(new Date().toISOString().slice(0, 10))
+      const id = (brief.data as { id?: string })?.id
+      if (!id) {
+        throw new Error('missing brief id')
+      }
+      await dailyBriefs.read(id)
+    },
+  })
 
   const connectGmail = async () => {
     try {
@@ -132,6 +159,23 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2">
+          <button
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            className="ui-btn-secondary w-full"
+          >
+            {exportMutation.isPending ? '导出中...' : '导出全部数据'}
+          </button>
+          <button
+            onClick={() => markBriefReadMutation.mutate()}
+            disabled={markBriefReadMutation.isPending}
+            className="ui-btn-ghost w-full"
+          >
+            {markBriefReadMutation.isPending ? '处理中...' : '标记今日日报已读'}
+          </button>
         </div>
       </div>
 

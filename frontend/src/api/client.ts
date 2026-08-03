@@ -82,6 +82,11 @@ export const chat = {
     api.get('/chat/history'),
 }
 
+export const ask = {
+  query: (question: string) =>
+    api.post<{ type: string; answer: string; sources?: Array<Record<string, any>> }>('/ask', { question }),
+}
+
 export const connectors = {
   list: () => api.get('/connectors'),
   auth: (provider: string) =>
@@ -177,9 +182,18 @@ export const medications = {
     api.post('/medications', data),
 }
 
+export const medicine = {
+  list: () => api.get('/medicine'),
+  ocr: (data: { name: string; dosage?: string; frequency?: string; start_date?: string; end_date?: string; image_url?: string }) =>
+    api.post('/medicine/ocr', data),
+  reminder: (id: string) => api.post(`/medicine/${id}/reminder`),
+}
+
 export const dailyBriefs = {
   today: () => api.get('/daily-briefs/today'),
   generate: () => api.post('/daily-briefs/generate'),
+  byDay: (day: string) => api.get('/daily-brief', { params: { day } }),
+  read: (id: string) => api.post(`/daily-brief/${id}/read`),
 }
 
 export const intake = {
@@ -199,7 +213,25 @@ export const intake = {
 }
 
 export const search = {
-  query: (q: string) => api.get('/search', { params: { q } }),
+  query: (q: string, limit?: number) => api.get('/search', { params: { q, limit } }),
+}
+
+export const mention = {
+  query: (q: string, limit?: number) => api.get('/nodes/mention', { params: { q, limit } }),
+}
+
+export const extraction = {
+  analyze: (text: string) => api.post<{ extracted: Array<Record<string, any>> }>('/extraction/analyze', { text }),
+  upload: (files: File[], note?: string) => {
+    const formData = new FormData()
+    files.forEach((file) => formData.append('files', file))
+    if (note) {
+      formData.append('note', note)
+    }
+    return api.post<{ extracted: Array<Record<string, any>> }>('/extraction/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const relations = {
@@ -211,4 +243,8 @@ export const relations = {
 export const user = {
   me: () => api.get('/me'),
   update: (data: any) => api.patch('/me', data),
+}
+
+export const dataExport = {
+  run: () => api.post('/export'),
 }

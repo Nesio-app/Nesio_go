@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconCloud, IconMic, IconPlus, IconX
 } from '../icons'
-import { chat, dailyBriefs, intake, search, today } from '../api/client'
+import { ask, dailyBriefs, extraction, intake, mention, reminders, search, today } from '../api/client'
 
 interface TodayCard {
   id: string
@@ -31,6 +31,12 @@ interface IntakeIngestResponse {
   intent_label: string
   confidence: number
   remind_at?: string | null
+}
+
+interface MentionResult {
+  id: string
+  type: string
+  title: string
 }
 
 interface SpeechRecognitionResultLike {
@@ -84,6 +90,35 @@ function formatIntakeHint(data: IntakeIngestResponse): string {
   return `识别为${data.intent_label}并已入库（置信度 ${confidence}）。`
 }
 
+function inferReminderAt(text: string): Date | null {
+  const source = text.trim()
+  if (!source) {
+    return null
+  }
+  const now = new Date()
+  const reminder = new Date(now)
+
+  if (source.includes('后天')) {
+    reminder.setDate(reminder.getDate() + 2)
+  } else if (source.includes('明天')) {
+    reminder.setDate(reminder.getDate() + 1)
+  } else if (!source.includes('今天') && !source.match(/\d{1,2}\s*点/)) {
+    return null
+  }
+
+  const hourMatch = source.match(/(\d{1,2})\s*点/)
+  if (hourMatch) {
+    const hour = Number(hourMatch[1])
+    if (hour >= 0 && hour <= 23) {
+      reminder.setHours(hour, 0, 0, 0)
+      return reminder
+    }
+  }
+
+  reminder.setHours(now.getHours() + 2, 0, 0, 0)
+  return reminder
+}
+
 export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   // avoid unused parameter errors when handlers are not passed
   void onMemory
@@ -95,6 +130,7 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   const [saveTone, setSaveTone] = useState<'info' | 'success' | 'error'>('info')
   const [intakeHint, setIntakeHint] = useState('')
   const [searchResults, setSearchResults] = useState<Array<{ id: string; title: string; type: string }>>([])
+  const [mentionResults, setMentionResults] = useState<MentionResult[]>([])
   const [isListening, setIsListening] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -158,10 +194,11 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
 
   const askMutation = useMutation({
     mutationFn: async (message: string) => {
-      await chat.send(message)
+      const response = await ask.query(message)
+      return response.data as { answer: string }
     },
-    onSuccess: () => {
-      setSaveMessage('已发送到问一问。')
+    onSuccess: (data) => {
+      setSaveMessage(data.answer || '已发送到问一问。')
       setSaveTone('success')
       onChat?.()
     },
@@ -172,8 +209,8 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
   })
 
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      await intake.upload(file)
+    mutationFn: async ({ files, note }: { files: File[]; note?: string }) => {
+      await extraction.upload(files, note)
     },
     onSuccess: async () => {
       setSaveMessage('文件已智能识别并入库。')
@@ -189,12 +226,55 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     },
   })
 
+  const mentionMutation = useMutation({
+    mutationFn: async (keyword: string) => {
+      const response = await mention.query(keyword, 5)
+      return response.data as MentionResult[]
+    },
+    onSuccess: (rows) => {
+      setMentionResults(rows)
+    },
+    onError: () => {
+      setMentionResults([])
+    },
+  })
+
+  const reminderMutation = useMutation({
+    mutationFn: async ({ title, remindAt }: { title: string; remindAt: string }) => {
+      await reminders.create({ title, remind_at: remindAt, source: 'capture_bar' })
+    },
+    onSuccess: async () => {
+      setSaveMessage('提醒已创建。')
+      setSaveTone('success')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['today-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['daily-brief-today'] }),
+      ])
+    },
+    onError: () => {
+      setSaveMessage('创建提醒失败，请稍后重试。')
+      setSaveTone('error')
+    },
+  })
+
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop()
       recognitionRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    const keyword = taskTitle.trim()
+    if (keyword.length < 2) {
+      setMentionResults([])
+      return
+    }
+    const timer = window.setTimeout(() => {
+      mentionMutation.mutate(keyword)
+    }, 240)
+    return () => window.clearTimeout(timer)
+  }, [taskTitle])
 
   const submitTask = () => {
     const title = taskTitle.trim()
@@ -233,8 +313,24 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     if (!file) {
       return
     }
-    uploadMutation.mutate(file)
+    uploadMutation.mutate({ files: [file], note: taskTitle.trim() || undefined })
   }
+
+  const handleSetReminder = () => {
+    const title = taskTitle.trim()
+    if (!title || reminderMutation.isPending) {
+      return
+    }
+    const remindAt = inferReminderAt(title)
+    if (!remindAt) {
+      setSaveMessage('未识别到明确时间，请补充“明天/后天/几点”。')
+      setSaveTone('info')
+      return
+    }
+    reminderMutation.mutate({ title, remindAt: remindAt.toISOString() })
+  }
+
+  const hasReminderHint = Boolean(inferReminderAt(taskTitle.trim()))
 
   const toggleVoiceInput = () => {
     const Constructor = (window as WindowWithSpeechRecognition).SpeechRecognition
@@ -391,6 +487,25 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
           <button onClick={handleAsk} className="ui-chip ui-chip-active">
             直接问问
           </button>
+          {hasReminderHint && (
+            <button onClick={handleSetReminder} className="ui-chip">
+              设提醒
+            </button>
+          )}
+        </div>
+      )}
+
+      {mentionResults.length > 0 && (
+        <div className="pl-14 flex flex-wrap gap-2">
+          {mentionResults.map((row) => (
+            <button
+              key={row.id}
+              onClick={() => setTaskTitle((current) => `${current.trim()} @${row.title}`.trim())}
+              className="ui-chip"
+            >
+              @{row.title}
+            </button>
+          ))}
         </div>
       )}
       {saveMessage && (
