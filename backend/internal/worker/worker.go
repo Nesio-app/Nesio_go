@@ -125,7 +125,15 @@ func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) erro
 		return err
 	}
 
-	if err := w.ensureDailyBriefs(ctx); err != nil {
+	if err := w.runExpiryReminderJob(ctx); err != nil {
+		log.Printf("expiry reminder job error: %v", err)
+	}
+
+	if err := w.runDocumentReminderJob(ctx); err != nil {
+		log.Printf("document reminder job error: %v", err)
+	}
+
+	if err := w.runDailyBriefJob(ctx); err != nil {
 		log.Printf("daily brief generation error: %v", err)
 	}
 
