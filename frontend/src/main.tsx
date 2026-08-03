@@ -10,7 +10,38 @@ const queryClient = new QueryClient()
 if ('serviceWorker' in navigator) {
   void navigator.serviceWorker
     .register(`${import.meta.env.BASE_URL}sw.js`)
-    .then((registration) => registration.update())
+    .then((registration) => {
+      const activateWaitingWorker = () => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+      }
+
+      registration.addEventListener('updatefound', () => {
+        const installingWorker = registration.installing
+        if (!installingWorker) {
+          return
+        }
+
+        installingWorker.addEventListener('statechange', () => {
+          if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            activateWaitingWorker()
+          }
+        })
+      })
+
+      void registration.update()
+      activateWaitingWorker()
+    })
+
+  let reloadedForSwUpdate = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForSwUpdate) {
+      return
+    }
+    reloadedForSwUpdate = true
+    window.location.reload()
+  })
 }
 setupOfflineQueueSync()
 void flushQueuedRequests()

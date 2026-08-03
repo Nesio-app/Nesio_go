@@ -1,11 +1,17 @@
-const CACHE_NAME = 'nesio-shell-v2'
-const API_CACHE_NAME = 'nesio-api-v2'
+const CACHE_NAME = 'nesio-shell-v3'
+const API_CACHE_NAME = 'nesio-api-v3'
 const APP_BASE = new URL(self.registration.scope).pathname
 const APP_SHELL = [APP_BASE, `${APP_BASE}index.html`]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)))
   self.skipWaiting()
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('activate', (event) => {
@@ -40,6 +46,11 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.origin === self.location.origin) {
+    if (request.destination === 'script' || request.destination === 'style') {
+      event.respondWith(networkFirst(request, CACHE_NAME))
+      return
+    }
+
     event.respondWith(cacheFirst(request, CACHE_NAME))
   }
 })
