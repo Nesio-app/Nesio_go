@@ -66,7 +66,7 @@ export default function TabBar({ active, onChange, onCameraPress, onAskPress }: 
         className={`flex flex-col items-center gap-1 transition active:scale-95 ${active === 'domains' ? 'text-nesio-accent' : 'text-nesio-muted'}`}
       >
         <IconSparkles className="w-6 h-6" />
-        <span className="type-caption">板块</span>
+        <span className="type-caption">洞察</span>
       </button>
     </nav>
   )

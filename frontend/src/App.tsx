@@ -91,7 +91,15 @@ export default function App() {
             onPaletteChange={setPalette}
           />
         )}
-        {tab === 'domains' && <DomainsPage onToday={() => navigate('today')} onOpenItems={() => navigate('items')} />}
+        {tab === 'domains' && (
+          <DomainsPage
+            onToday={() => navigate('today')}
+            onMemory={() => navigate('memory')}
+            onChat={() => navigate('chat')}
+            onSettings={() => navigate('settings')}
+            onOpenItems={() => navigate('items')}
+          />
+        )}
         {tab === 'items' && (
           <ItemsPage
             onOpenItem={(itemId) => {

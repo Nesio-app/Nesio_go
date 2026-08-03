@@ -56,12 +56,11 @@ interface Props {
   onToday?: () => void
   onMemory?: () => void
   onChat?: () => void
+  onSettings?: () => void
   onOpenItems?: () => void
 }
 
-export default function DomainsPage({ onToday, onMemory, onChat, onOpenItems }: Props) {
-  void onMemory
-  void onChat
+export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onOpenItems }: Props) {
   const queryClient = useQueryClient()
   const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label']>('健康')
   const [scheduleSection, setScheduleSection] = useState<'calendar' | 'inbox' | 'sent'>('calendar')
@@ -351,10 +350,6 @@ export default function DomainsPage({ onToday, onMemory, onChat, onOpenItems }: 
           <button
             key={d.label}
             onClick={() => {
-              if (d.label === '物品') {
-                onOpenItems?.()
-                return
-              }
               setSelectedLabel(d.label)
             }}
             className={`flex flex-col items-center gap-2 py-3 rounded-2xl active:scale-95 transition ${selectedLabel === d.label ? 'bg-white shadow-card' : ''}`}
@@ -366,6 +361,9 @@ export default function DomainsPage({ onToday, onMemory, onChat, onOpenItems }: 
               </div>
             </div>
             <span className="text-sm text-nesio-ink font-medium">{d.label}</span>
+            <span className="type-caption text-nesio-muted">
+              {selectedLabel === d.label && selectedOverview ? `任务${selectedOverview.task_count} 记忆${selectedOverview.memory_count}` : d.metric}
+            </span>
           </button>
         ))}
       </div>
@@ -400,6 +398,20 @@ export default function DomainsPage({ onToday, onMemory, onChat, onOpenItems }: 
                 <div key={title} className="text-sm text-nesio-muted">• {title}</div>
               ))}
             </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => onChat?.()} className="ui-btn-secondary">
+            问问这个板块
+          </button>
+          <button onClick={() => onMemory?.()} className="ui-btn-secondary">
+            查看相关记忆
+          </button>
+          {selectedLabel === '运营' && (
+            <button onClick={() => onSettings?.()} className="ui-btn-secondary">
+              打开系统设置
+            </button>
           )}
         </div>
 
