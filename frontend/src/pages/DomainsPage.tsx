@@ -30,13 +30,36 @@ const domains = [
   { icon: IconGift, label: '奖励', color: 'text-nesio-accent', focus: '奖励机制、庆祝、恢复', metric: '本月已兑现 3 次', checklist: ['兑现一次奖励', '记录进步', '设计下个奖励'] },
 ] as const
 
+const baseUrl = import.meta.env.BASE_URL || '/'
+const domainCoverByLabel: Record<string, string> = {
+  健康: `${baseUrl}ui/domains/IMG_0143.PNG`,
+  物品: `${baseUrl}ui/domains/IMG_0144.PNG`,
+  财务: `${baseUrl}ui/domains/IMG_0145.PNG`,
+  日程: `${baseUrl}ui/domains/IMG_0146.PNG`,
+  足迹: `${baseUrl}ui/domains/IMG_0147.PNG`,
+  健身: `${baseUrl}ui/domains/IMG_0148.PNG`,
+  家务: `${baseUrl}ui/domains/IMG_0149.PNG`,
+  衣橱: `${baseUrl}ui/domains/IMG_0151.PNG`,
+  关系: `${baseUrl}ui/domains/IMG_0152.PNG`,
+  成长: `${baseUrl}ui/domains/IMG_0153.PNG`,
+  美味: `${baseUrl}ui/domains/IMG_0154.PNG`,
+  镜子: `${baseUrl}ui/domains/IMG_0155.PNG`,
+  资产: `${baseUrl}ui/domains/IMG_0156.PNG`,
+  目标: `${baseUrl}ui/domains/IMG_0157.PNG`,
+  剧场: `${baseUrl}ui/domains/IMG_0158.PNG`,
+  运营: `${baseUrl}ui/domains/IMG_0159.PNG`,
+  音乐: `${baseUrl}ui/domains/IMG_0160.PNG`,
+  奖励: `${baseUrl}ui/domains/IMG_0161.PNG`,
+}
+
 interface Props {
   onToday?: () => void
   onMemory?: () => void
   onChat?: () => void
+  onOpenItems?: () => void
 }
 
-export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
+export default function DomainsPage({ onToday, onMemory, onChat, onOpenItems }: Props) {
   void onMemory
   void onChat
   const queryClient = useQueryClient()
@@ -327,11 +350,20 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
         {domains.map((d) => (
           <button
             key={d.label}
-            onClick={() => setSelectedLabel(d.label)}
+            onClick={() => {
+              if (d.label === '物品') {
+                onOpenItems?.()
+                return
+              }
+              setSelectedLabel(d.label)
+            }}
             className={`flex flex-col items-center gap-2 py-3 rounded-2xl active:scale-95 transition ${selectedLabel === d.label ? 'bg-white shadow-card' : ''}`}
           >
-            <div className="w-16 h-16 rounded-2xl bg-white shadow-card flex items-center justify-center">
-              <d.icon className={`w-7 h-7 ${d.color}`} />
+            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card bg-white">
+              <img src={domainCoverByLabel[d.label]} alt={d.label} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                <d.icon className="w-7 h-7 text-white" />
+              </div>
             </div>
             <span className="text-sm text-nesio-ink font-medium">{d.label}</span>
           </button>
@@ -370,6 +402,12 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
             </div>
           )}
         </div>
+
+        {selectedLabel === '物品' && (
+          <button onClick={() => onOpenItems?.()} className="ui-btn-primary w-full">
+            进入物品聚合页
+          </button>
+        )}
 
         <div className="grid grid-cols-1 gap-4">
           <div className="rounded-2xl border border-nesio-border p-4 bg-white/70 space-y-3">

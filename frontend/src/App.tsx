@@ -55,7 +55,7 @@ export default function App() {
     setTab(prevTab)
   }
 
-  const tabBarActiveTab = tab === 'today' || tab === 'items' ? tab : 'today'
+  const tabBarActiveTab = tab === 'today' ? 'today' : (tab === 'domains' || tab === 'items' || tab === 'item-detail' ? 'domains' : 'today')
 
   // 哪些页面显示 TabBar
   const showTabBar = ['today', 'memory', 'domains', 'items'].includes(tab)
@@ -91,7 +91,7 @@ export default function App() {
             onPaletteChange={setPalette}
           />
         )}
-        {tab === 'domains' && <DomainsPage onToday={() => navigate('today')} />}
+        {tab === 'domains' && <DomainsPage onToday={() => navigate('today')} onOpenItems={() => navigate('items')} />}
         {tab === 'items' && (
           <ItemsPage
             onOpenItem={(itemId) => {

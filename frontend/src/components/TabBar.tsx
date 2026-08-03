@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { IconBox, IconClock, IconHexagon } from '../icons'
+import { IconClock, IconHexagon, IconSparkles } from '../icons'
 
 type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items'
 
@@ -62,11 +62,11 @@ export default function TabBar({ active, onChange, onCameraPress, onAskPress }: 
       </button>
 
       <button
-        onClick={() => onChange('items')}
-        className={`flex flex-col items-center gap-1 transition active:scale-95 ${active === 'items' ? 'text-nesio-accent' : 'text-nesio-muted'}`}
+        onClick={() => onChange('domains')}
+        className={`flex flex-col items-center gap-1 transition active:scale-95 ${active === 'domains' ? 'text-nesio-accent' : 'text-nesio-muted'}`}
       >
-        <IconBox className="w-6 h-6" />
-        <span className="type-caption">物品</span>
+        <IconSparkles className="w-6 h-6" />
+        <span className="type-caption">板块</span>
       </button>
     </nav>
   )
