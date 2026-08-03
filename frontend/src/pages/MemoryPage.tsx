@@ -26,6 +26,16 @@ interface MemoryItem {
   created_at: string
 }
 
+function sanitizeBodyForDisplay(body?: string): string {
+  if (!body) {
+    return ''
+  }
+  if (/AI not configured\. Add GEMINI_API_KEY/i.test(body)) {
+    return ''
+  }
+  return body
+}
+
 export default function MemoryPage({ onBack, initialDomainHint }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
@@ -61,7 +71,7 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
       || (activeTag === '任务' && item.type === 'task')
       || (activeTag === '记忆' && item.type === 'memory')
       || (activeTag === '其他' && !['task', 'memory'].includes(item.type))
-    const searchText = `${item.title} ${item.body ?? ''} ${item.domain ?? ''} ${tags.join(' ')}`.toLowerCase()
+    const searchText = `${item.title} ${sanitizeBodyForDisplay(item.body)} ${item.domain ?? ''} ${tags.join(' ')}`.toLowerCase()
     return matchesCategory && searchText.includes(query.trim().toLowerCase())
   })
 
@@ -91,8 +101,8 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
             创建时间 {new Date(selectedItem.created_at).toLocaleString('zh-CN', { hour12: false })}
           </div>
 
-          {selectedItem.body && (
-            <div className="type-body text-nesio-ink whitespace-pre-wrap break-words">{selectedItem.body}</div>
+          {sanitizeBodyForDisplay(selectedItem.body) && (
+            <div className="type-body text-nesio-ink whitespace-pre-wrap break-words">{sanitizeBodyForDisplay(selectedItem.body)}</div>
           )}
 
           {(selectedItem.domain || tags.length > 0) && (
@@ -210,7 +220,7 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
                   {item.type === 'task' ? '任务' : item.type === 'memory' ? '记忆' : item.type}
                 </span>
               </div>
-              {item.body && <div className="type-body text-nesio-muted mt-1">{item.body}</div>}
+              {sanitizeBodyForDisplay(item.body) && <div className="type-body text-nesio-muted mt-1">{sanitizeBodyForDisplay(item.body)}</div>}
               {(item.domain || tags.length > 0) && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {item.domain && (

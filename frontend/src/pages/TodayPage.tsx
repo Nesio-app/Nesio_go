@@ -90,6 +90,16 @@ function formatIntakeHint(data: IntakeIngestResponse): string {
   return `识别为${data.intent_label}并已入库（置信度 ${confidence}）。`
 }
 
+function sanitizeBodyForDisplay(body?: string): string {
+  if (!body) {
+    return ''
+  }
+  if (/AI not configured\. Add GEMINI_API_KEY/i.test(body)) {
+    return ''
+  }
+  return body
+}
+
 function inferReminderAt(text: string): Date | null {
   const source = text.trim()
   if (!source) {
@@ -559,7 +569,9 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
           </div>
         </div>
 
-        {cards.slice(1, 4).map((card) => (
+        {cards.slice(1, 4).map((card) => {
+          const safeBody = sanitizeBodyForDisplay(card.body)
+          return (
           <div key={card.id} className="flex gap-3">
             <div className="flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full border-2 border-nesio-accent flex items-center justify-center">
@@ -572,14 +584,15 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
               <div>
                 <div className="type-caption text-nesio-accent font-medium">{card.slot} · 严重度 {card.severity}</div>
                 <div className="type-title text-nesio-ink mt-0.5">{card.title}</div>
-                {card.body && <div className="type-body text-nesio-muted mt-1">{card.body}</div>}
+                {safeBody && <div className="type-body text-nesio-muted mt-1">{safeBody}</div>}
               </div>
               <button className="w-6 h-6 rounded-full bg-nesio-icon-bg flex items-center justify-center text-nesio-muted active:scale-90 transition">
                 <IconX className="w-3 h-3" />
               </button>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -52,6 +52,16 @@ const domainCoverByLabel: Record<string, string> = {
   奖励: `${baseUrl}ui/domains/IMG_0161.PNG`,
 }
 
+function sanitizeBodyForDisplay(body?: string | null): string {
+  if (!body) {
+    return ''
+  }
+  if (/AI not configured\. Add GEMINI_API_KEY/i.test(body)) {
+    return ''
+  }
+  return body
+}
+
 interface Props {
   onToday?: () => void
   onMemory?: (domainLabel?: string) => void
@@ -465,7 +475,7 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
             {(detailQuery.data?.memory ?? []).slice(0, 6).map((item) => (
               <div key={item.id} className="rounded-xl bg-white px-3 py-2">
                 <div className="text-sm text-nesio-ink">{item.title}</div>
-                {item.body && <div className="text-xs text-nesio-muted mt-1">{item.body}</div>}
+                {sanitizeBodyForDisplay(item.body) && <div className="text-xs text-nesio-muted mt-1">{sanitizeBodyForDisplay(item.body)}</div>}
               </div>
             ))}
           </div>
