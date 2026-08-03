@@ -220,7 +220,7 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
   const scheduleTabCounts = {
     calendar: (detailQuery.data?.tasks?.length ?? 0) + (detailQuery.data?.today?.length ?? 0),
     inbox: gmailInboxQuery.data?.messages?.length ?? selectedOverview?.memory_count ?? 0,
-    sent: scheduleSection === 'sent' ? gmailInboxQuery.data?.messages?.length ?? 0 : 5,
+    sent: scheduleSection === 'sent' ? gmailInboxQuery.data?.messages?.length ?? 0 : 0,
   }
 
   const renderScheduleWorkspace = () => (
