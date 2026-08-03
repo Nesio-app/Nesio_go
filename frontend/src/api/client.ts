@@ -105,7 +105,7 @@ export const gmail = {
 }
 
 export const memories = {
-  list: () => api.get('/memories'),
+  list: (params?: { domain?: string }) => api.get('/memories', { params }),
   create: (data: { title: string; body?: string; tags?: string[] }) =>
     api.post('/memories', data),
 }

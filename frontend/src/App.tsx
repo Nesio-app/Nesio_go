@@ -76,7 +76,10 @@ export default function App() {
       <main key={tab} className="page-shell app-content-safe flex-1 overflow-y-auto scrollbar-hide">
         {tab === 'today' && (
           <TodayPage
-            onMemory={() => navigate('memory')}
+            onMemory={() => {
+              setMemoryDomainHint(null)
+              navigate('memory')
+            }}
             onSettings={() => navigate('settings')}
             onChat={() => navigate('chat')}
           />

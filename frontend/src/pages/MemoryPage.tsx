@@ -39,17 +39,16 @@ function sanitizeBodyForDisplay(body?: string): string {
 export default function MemoryPage({ onBack, initialDomainHint }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
+  const [activeDomain, setActiveDomain] = useState<string>('')
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null)
 
   useEffect(() => {
-    if (initialDomainHint) {
-      setQuery(initialDomainHint)
-    }
+    setActiveDomain(initialDomainHint ?? '')
   }, [initialDomainHint])
   const { data } = useQuery({
-    queryKey: ['memories'],
+    queryKey: ['memories', activeDomain],
     queryFn: async () => {
-      const response = await memories.list()
+      const response = await memories.list({ domain: activeDomain || undefined })
       const rows = (response.data ?? []) as MemoryItem[]
       return rows.map((item) => ({
         ...item,
@@ -59,6 +58,11 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
   })
 
   const allItems = data ?? []
+  const allDomainOptions = Array.from(new Set((data ?? []).map((item) => item.domain).filter((domain): domain is string => Boolean(domain && domain.trim()))))
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  const domainOptions = activeDomain && !allDomainOptions.includes(activeDomain)
+    ? [activeDomain, ...allDomainOptions]
+    : allDomainOptions
   const categories = [
     { name: '全部', count: allItems.length },
     { name: '任务', count: allItems.filter((item) => item.type === 'task').length },
@@ -147,6 +151,24 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
           placeholder="搜记忆"
           className="ui-input pl-10 shadow-card"
         />
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <button
+          onClick={() => setActiveDomain('')}
+          className={`ui-chip whitespace-nowrap transition ${activeDomain === '' ? 'ui-chip-active' : ''}`}
+        >
+          全部领域
+        </button>
+        {domainOptions.map((domain) => (
+          <button
+            key={domain}
+            onClick={() => setActiveDomain(domain)}
+            className={`ui-chip whitespace-nowrap transition ${activeDomain === domain ? 'ui-chip-active' : ''}`}
+          >
+            {domain}
+          </button>
+        ))}
       </div>
 
       {/* Top Categories */}
@@ -239,7 +261,9 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
             )
           })}
           {memoryItems.length === 0 && (
-            <div className="type-body text-nesio-muted">当前筛选下还没有云端记忆映射。</div>
+            <div className="type-body text-nesio-muted">
+              {activeDomain ? `当前领域「${activeDomain}」下还没有云端记忆映射。` : '当前筛选下还没有云端记忆映射。'}
+            </div>
           )}
           {memoryItems.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
