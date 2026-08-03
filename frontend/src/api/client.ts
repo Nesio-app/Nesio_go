@@ -125,11 +125,15 @@ export const domains = {
 export const rooms = {
   list: () => api.get('/rooms'),
   create: (data: { name: string; icon?: string; sort_order?: number }) => api.post('/rooms', data),
+  update: (id: string, data: { name?: string; icon?: string; sort_order?: number }) => api.patch(`/rooms/${id}`, data),
+  remove: (id: string) => api.delete(`/rooms/${id}`),
 }
 
 export const containers = {
   list: (roomId?: string) => api.get('/containers', { params: { room: roomId } }),
   create: (data: { name: string; icon?: string; room_id?: string | null; sort_order?: number }) => api.post('/containers', data),
+  update: (id: string, data: { name?: string; icon?: string; room_id?: string | null; sort_order?: number }) => api.patch(`/containers/${id}`, data),
+  remove: (id: string) => api.delete(`/containers/${id}`),
 }
 
 export const items = {

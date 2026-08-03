@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { containers, items, rooms } from '../api/client'
 import WhereIs from '../components/WhereIs'
 
@@ -8,9 +8,14 @@ interface Props {
 }
 
 export default function ItemsPage({ onOpenItem }: Props) {
+  const queryClient = useQueryClient()
   const [selectedRoom, setSelectedRoom] = useState<string>('')
   const [selectedContainer, setSelectedContainer] = useState<string>('')
   const [query, setQuery] = useState('')
+  const [newRoomName, setNewRoomName] = useState('')
+  const [newRoomIcon, setNewRoomIcon] = useState('')
+  const [newContainerName, setNewContainerName] = useState('')
+  const [newContainerIcon, setNewContainerIcon] = useState('')
 
   const roomsQuery = useQuery({
     queryKey: ['rooms'],
@@ -36,6 +41,69 @@ export default function ItemsPage({ onOpenItem }: Props) {
   const expiring = useMemo(() => (expiringQuery.data ?? []).filter((item) => typeof item.days_until_expiry === 'number' && item.days_until_expiry <= 7), [expiringQuery.data])
   const docs = useMemo(() => (docsQuery.data ?? []).filter((item) => item.is_document), [docsQuery.data])
   const hasError = roomsQuery.isError || containersQuery.isError || itemsQuery.isError
+
+  const createRoomMutation = useMutation({
+    mutationFn: async () => {
+      await rooms.create({
+        name: newRoomName.trim(),
+        icon: newRoomIcon.trim() || undefined,
+      })
+    },
+    onSuccess: async () => {
+      setNewRoomName('')
+      setNewRoomIcon('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+      ])
+    },
+  })
+
+  const createContainerMutation = useMutation({
+    mutationFn: async () => {
+      await containers.create({
+        name: newContainerName.trim(),
+        icon: newContainerIcon.trim() || undefined,
+        room_id: selectedRoom || undefined,
+      })
+    },
+    onSuccess: async () => {
+      setNewContainerName('')
+      setNewContainerIcon('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['containers'] }),
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+      ])
+    },
+  })
+
+  const deleteRoomMutation = useMutation({
+    mutationFn: async (roomId: string) => {
+      await rooms.remove(roomId)
+    },
+    onSuccess: async () => {
+      setSelectedRoom('')
+      setSelectedContainer('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+        queryClient.invalidateQueries({ queryKey: ['containers'] }),
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+      ])
+    },
+  })
+
+  const deleteContainerMutation = useMutation({
+    mutationFn: async (containerId: string) => {
+      await containers.remove(containerId)
+    },
+    onSuccess: async () => {
+      setSelectedContainer('')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['containers'] }),
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+      ])
+    },
+  })
 
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
@@ -71,6 +139,72 @@ export default function ItemsPage({ onOpenItem }: Props) {
             {room.name}
           </button>
         ))}
+      </div>
+
+      <div className="ui-card p-4 space-y-3">
+        <div className="type-title text-nesio-ink">空间管理</div>
+        <div className="grid grid-cols-[1fr,92px,88px] gap-2">
+          <input
+            value={newRoomName}
+            onChange={(e) => setNewRoomName(e.target.value)}
+            placeholder="新房间名（如：客厅）"
+            className="ui-input"
+          />
+          <input
+            value={newRoomIcon}
+            onChange={(e) => setNewRoomIcon(e.target.value)}
+            placeholder="图标"
+            className="ui-input"
+          />
+          <button
+            onClick={() => createRoomMutation.mutate()}
+            disabled={createRoomMutation.isPending || !newRoomName.trim()}
+            className="ui-btn-secondary"
+          >
+            新建房间
+          </button>
+        </div>
+
+        <div className="grid grid-cols-[1fr,92px,88px] gap-2">
+          <input
+            value={newContainerName}
+            onChange={(e) => setNewContainerName(e.target.value)}
+            placeholder={selectedRoom ? '新容器名（会绑定当前房间）' : '新容器名（不绑定房间）'}
+            className="ui-input"
+          />
+          <input
+            value={newContainerIcon}
+            onChange={(e) => setNewContainerIcon(e.target.value)}
+            placeholder="图标"
+            className="ui-input"
+          />
+          <button
+            onClick={() => createContainerMutation.mutate()}
+            disabled={createContainerMutation.isPending || !newContainerName.trim()}
+            className="ui-btn-secondary"
+          >
+            新建容器
+          </button>
+        </div>
+
+        {selectedRoom && (
+          <button
+            onClick={() => deleteRoomMutation.mutate(selectedRoom)}
+            disabled={deleteRoomMutation.isPending}
+            className="ui-btn-ghost"
+          >
+            {deleteRoomMutation.isPending ? '删除房间中...' : '删除当前房间'}
+          </button>
+        )}
+        {selectedContainer && (
+          <button
+            onClick={() => deleteContainerMutation.mutate(selectedContainer)}
+            disabled={deleteContainerMutation.isPending}
+            className="ui-btn-ghost"
+          >
+            {deleteContainerMutation.isPending ? '删除容器中...' : '删除当前容器'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
