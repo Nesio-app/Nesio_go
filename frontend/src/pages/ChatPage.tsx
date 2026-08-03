@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { IconArrowLeft, IconClock, IconMic, IconPlus } from '../icons'
-import { chat, intake } from '../api/client'
+import { ask, chat, intake } from '../api/client'
 
 interface Props {
   onBack: () => void
@@ -47,6 +47,7 @@ export default function ChatPage({ onBack }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [useAskMode, setUseAskMode] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
 
@@ -66,6 +67,11 @@ export default function ChatPage({ onBack }: Props) {
 
   const sendMutation = useMutation({
     mutationFn: async (message: string) => {
+      if (useAskMode) {
+        const response = await ask.query(message)
+        const payload = response.data as { answer?: string }
+        return { content: payload.answer || '已收到你的问题。' }
+      }
       const response = await chat.send(message)
       return response.data as { content: string }
     },
@@ -196,6 +202,12 @@ export default function ChatPage({ onBack }: Props) {
         </button>
         <h2 className="type-h2 text-nesio-ink">念念</h2>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setUseAskMode((v) => !v)}
+            className={`ui-btn-ghost px-3 ${useAskMode ? 'text-nesio-accent' : ''}`}
+          >
+            {useAskMode ? '问问模式' : '对话模式'}
+          </button>
           <button className="ui-icon-btn text-nesio-muted" aria-label="历史">
             <IconClock className="w-5 h-5" />
           </button>
