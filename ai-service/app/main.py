@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 import httpx
@@ -20,6 +20,10 @@ except Exception:
     Image = None
 
 app = FastAPI(title="Nesio AI Service")
+
+from app.routers.items import router as items_router
+
+app.include_router(items_router)
 
 
 def gemini_api_key() -> str:
@@ -103,37 +107,6 @@ async def ask(req: AskRequest):
 @app.post("/intake/parse", response_model=IntakeParseResponse)
 async def parse_intake(req: IntakeParseRequest):
     return await handle_intake_parse(req.text, req.locale)
-
-
-@app.post("/items/analyze")
-async def analyze_item(
-    file: UploadFile = File(...),
-    user_id: str = Form(...),
-    locale: str = Form("zh"),
-):
-    content = await file.read()
-
-    extraction = await extract_item(content=content, filename=file.filename or "", locale=locale)
-    visual_hash = hashlib.sha256(content).hexdigest()[:16]
-
-    return {
-        "extraction": extraction,
-        "duplicates": [],
-        "visual_hash": visual_hash,
-        "suggested_room_id": None,
-        "suggested_container_id": None,
-        "image_url": "",
-        "user_id": user_id,
-    }
-
-
-@app.post("/vision/analyze")
-async def analyze_vision_alias(
-    file: UploadFile = File(...),
-    user_id: str = Form(...),
-    locale: str = Form("zh"),
-):
-    return await analyze_item(file=file, user_id=user_id, locale=locale)
 
 
 async def handle_chat_request(message: str, tier: str = "standard", mode: str = "chat") -> ChatResponse:
