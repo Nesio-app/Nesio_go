@@ -5,7 +5,19 @@ import httpx
 import base64
 import hashlib
 import json
+import re
+from io import BytesIO
 from typing import Any
+
+try:
+    import pytesseract
+except Exception:
+    pytesseract = None
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
 
 app = FastAPI(title="Nesio AI Service")
 
@@ -226,7 +238,13 @@ async def extract_item(content: bytes, filename: str, locale: str = "zh") -> dic
         except Exception:
             pass
 
+    local_extraction = extract_item_offline(content=content, filename=filename, locale=locale)
+    if local_extraction is not None:
+        return local_extraction
+
     base_name = os.path.splitext(os.path.basename(filename))[0].strip() or "新物品"
+    if is_generic_camera_name(base_name):
+        base_name = "新物品"
     lower_name = base_name.lower()
     category = "other"
     suggested_room = "storage"
@@ -266,6 +284,136 @@ async def extract_item(content: bytes, filename: str, locale: str = "zh") -> dic
         "description": "拍照识别结果，建议手动确认后保存。",
         "locale": locale,
     }
+
+
+def extract_item_offline(content: bytes, filename: str, locale: str = "zh") -> dict[str, Any] | None:
+    if Image is None:
+        return None
+
+    try:
+        image = Image.open(BytesIO(content)).convert("RGB")
+    except Exception:
+        return None
+
+    text_lines: list[str] = []
+    if pytesseract is not None:
+        try:
+            ocr_text = pytesseract.image_to_string(image, lang="chi_sim+eng")
+            text_lines = [line.strip() for line in ocr_text.splitlines() if line and line.strip()]
+        except Exception:
+            text_lines = []
+
+    normalized_text = " ".join(text_lines)
+    normalized_lower = normalized_text.lower()
+
+    name = infer_name_from_text(text_lines)
+    if not name:
+        base_name = os.path.splitext(os.path.basename(filename))[0].strip()
+        if base_name and not is_generic_camera_name(base_name):
+            name = base_name
+        else:
+            name = "新物品"
+
+    category = "other"
+    suggested_room = "storage"
+    suggested_container = "drawer"
+    tags = ["待确认", "拍照"]
+    is_document = False
+    document_type = None
+    document_number = None
+
+    if any(k in normalized_lower for k in ["passport", "护照", "id card", "身份证", "driver", "驾照", "security alert"]):
+        category = "document"
+        suggested_room = "study"
+        suggested_container = "document_box"
+        tags = ["证件", "重要", "待核验"]
+        is_document = True
+        if "passport" in normalized_lower or "护照" in normalized_lower:
+            document_type = "passport"
+        elif "id card" in normalized_lower or "身份证" in normalized_lower:
+            document_type = "id_card"
+        elif "driver" in normalized_lower or "驾照" in normalized_lower:
+            document_type = "driver_license"
+
+        match = re.search(r"\b([A-Z0-9]{6,18})\b", normalized_text)
+        if match:
+            document_number = match.group(1)
+    elif any(k in normalized_lower for k in ["medicine", "tablet", "capsule", "药", "片", "mg", "ml"]):
+        category = "medicine"
+        suggested_room = "bedroom"
+        suggested_container = "medicine_box"
+        tags = ["药品", "健康", "待确认"]
+    elif any(k in normalized_lower for k in ["milk", "drink", "snack", "food", "食品", "饮料", "零食"]):
+        category = "food"
+        suggested_room = "kitchen"
+        suggested_container = "fridge"
+        tags = ["食品", "库存", "待确认"]
+    elif any(k in normalized_lower for k in ["invoice", "bill", "receipt", "账单", "发票", "订单"]):
+        category = "bill"
+        suggested_room = "study"
+        suggested_container = "folder"
+        tags = ["财务", "待处理", "待确认"]
+
+    expiry_date = extract_expiry_date(normalized_text)
+
+    description = "拍照识别完成，请确认关键字段。"
+    if normalized_text:
+        description = f"识别到文本: {normalized_text[:120]}"
+
+    return {
+        "name": name,
+        "category": category,
+        "brand": None,
+        "color": None,
+        "quantity": 1,
+        "unit": "piece",
+        "expiry_date": expiry_date,
+        "is_document": is_document,
+        "document_type": document_type,
+        "document_number": document_number,
+        "suggested_room": suggested_room,
+        "suggested_container": suggested_container,
+        "tags": tags,
+        "description": description,
+        "locale": locale,
+    }
+
+
+def infer_name_from_text(lines: list[str]) -> str:
+    noise = {
+        "re", "fw", "fwd", "mail", "email", "from", "to", "cc", "subject", "all", "全部来源", "全部标签"
+    }
+    for line in lines[:8]:
+        clean = re.sub(r"\s+", " ", line).strip(" -_:;,.，。")
+        if len(clean) < 2:
+            continue
+        lower = clean.lower()
+        if lower in noise:
+            continue
+        if any(k in lower for k in ["task prioritization", "security alert", "passport", "护照", "身份证", "驾照"]):
+            return clean[:48]
+    return ""
+
+
+def is_generic_camera_name(name: str) -> bool:
+    lower = name.strip().lower()
+    if lower in {"", "image", "photo", "img", "scan", "camera", "screenshot", "new", "untitled"}:
+        return True
+    return bool(re.fullmatch(r"(img|dsc|pxl|mvimg|wx_camera|camera)_?\d+", lower))
+
+
+def extract_expiry_date(text: str) -> str | None:
+    if not text:
+        return None
+    match = re.search(r"(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})", text)
+    if not match:
+        return None
+    year = int(match.group(1))
+    month = int(match.group(2))
+    day = int(match.group(3))
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        return None
+    return f"{year:04d}-{month:02d}-{day:02d}"
 
 
 async def call_gemini_item_extraction(content: bytes, locale: str) -> dict[str, Any]:

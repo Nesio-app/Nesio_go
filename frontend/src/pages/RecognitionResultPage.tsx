@@ -18,11 +18,11 @@ interface Props {
 
 export default function RecognitionResultPage({ previewUrl, result, onClose }: Props) {
   const [name, setName] = useState(String(result.extraction?.name ?? ''))
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState(String(result.extraction?.description ?? ''))
   const [roomId, setRoomId] = useState<string>('')
   const [containerId, setContainerId] = useState<string>('')
   const [price, setPrice] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
+  const [expiryDate, setExpiryDate] = useState(String(result.extraction?.expiry_date ?? ''))
   const [reminderLabel, setReminderLabel] = useState('服药提醒')
   const [shouldCreateNew, setShouldCreateNew] = useState(result.duplicates.length === 0)
 

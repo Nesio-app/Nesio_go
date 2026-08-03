@@ -78,58 +78,22 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
     const searchText = `${item.title} ${sanitizeBodyForDisplay(item.body)} ${item.domain ?? ''} ${tags.join(' ')}`.toLowerCase()
     return matchesCategory && searchText.includes(query.trim().toLowerCase())
   })
-
-  if (selectedItem) {
-    const tags = Array.isArray(selectedItem.tags) ? selectedItem.tags : []
-    return (
-      <div className="px-5 pt-6 pb-4 space-y-5">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSelectedItem(null)}
-            className="ui-icon-btn w-8 h-8"
-          >
-            <IconArrowLeft className="w-5 h-5" />
-          </button>
-          <h2 className="type-h2 text-nesio-ink">记忆详情</h2>
-        </div>
-
-        <article className="ui-card p-5 space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="type-title text-nesio-ink break-words">{selectedItem.title}</h3>
-            <span className="shrink-0 rounded-full bg-nesio-accentSoft px-2 py-1 type-caption text-nesio-accent">
-              {selectedItem.type === 'task' ? '任务' : selectedItem.type === 'memory' ? '记忆' : selectedItem.type}
-            </span>
-          </div>
-
-          <div className="type-caption text-nesio-muted">
-            创建时间 {new Date(selectedItem.created_at).toLocaleString('zh-CN', { hour12: false })}
-          </div>
-
-          {sanitizeBodyForDisplay(selectedItem.body) && (
-            <div className="type-body text-nesio-ink whitespace-pre-wrap break-words">{sanitizeBodyForDisplay(selectedItem.body)}</div>
-          )}
-
-          {(selectedItem.domain || tags.length > 0) && (
-            <div className="flex flex-wrap gap-2">
-              {selectedItem.domain && (
-                <span className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
-                  {selectedItem.domain}
-                </span>
-              )}
-              {tags.map((tag) => (
-                <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </article>
-      </div>
-    )
-  }
+  const selectedItemTags = Array.isArray(selectedItem?.tags) ? selectedItem.tags : []
+  const relatedItems = selectedItem
+    ? allItems
+      .filter((item) => item.id !== selectedItem.id)
+      .filter((item) => {
+        if (selectedItem.domain && item.domain === selectedItem.domain) {
+          return true
+        }
+        const currentTags = Array.isArray(item.tags) ? item.tags : []
+        return currentTags.some((tag) => selectedItemTags.includes(tag))
+      })
+      .slice(0, 5)
+    : []
 
   return (
-    <div className="px-5 pt-6 pb-4 space-y-5">
+    <div className="relative px-5 pt-6 pb-4 space-y-5">
       {/* Header with back */}
       <div className="flex items-center gap-3">
         <button
@@ -279,6 +243,90 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
           )}
         </div>
       </div>
+
+      {selectedItem && (
+        <>
+          <button
+            type="button"
+            aria-label="关闭记忆详情"
+            onClick={() => setSelectedItem(null)}
+            className="fixed inset-0 z-30 bg-black/35"
+          />
+          <section className="fixed inset-x-0 bottom-0 z-40 max-h-[84vh] rounded-t-[28px] bg-white shadow-2xl overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-white rounded-t-[28px] border-b border-nesio-border">
+              <div className="h-6 flex items-center justify-center">
+                <span className="h-1.5 w-20 rounded-full bg-nesio-border" />
+              </div>
+              <div className="px-5 pb-4 flex items-center justify-between gap-4">
+                <div className="type-h2 text-nesio-ink">记忆详情</div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(null)}
+                  className="w-10 h-10 rounded-2xl border border-nesio-border text-3xl leading-none text-nesio-muted"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <article className="px-5 pb-32 space-y-5">
+              <div className="rounded-2xl bg-amber-50 border border-amber-100 px-4 py-3">
+                <div className="type-title text-nesio-ink">
+                  {selectedItem.type === 'task' ? '任务' : selectedItem.type === 'memory' ? '事件' : selectedItem.type}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-3xl font-semibold text-nesio-ink break-words">{selectedItem.title}</h3>
+                {(selectedItem.domain || selectedItemTags.length > 0) && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedItem.domain && (
+                      <span className="px-3 py-1.5 rounded-full bg-nesio-bg type-caption text-nesio-muted">{selectedItem.domain}</span>
+                    )}
+                    {selectedItemTags.map((tag) => (
+                      <span key={tag} className="px-3 py-1.5 rounded-full bg-nesio-bg type-caption text-nesio-muted">{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="type-body text-nesio-ink flex items-center gap-2">
+                <IconCalendar className="w-5 h-5 text-nesio-muted" />
+                <span>{new Date(selectedItem.created_at).toLocaleString('zh-CN', { hour12: false })}</span>
+              </div>
+
+              {sanitizeBodyForDisplay(selectedItem.body) && (
+                <div className="type-body text-nesio-muted whitespace-pre-wrap break-words">{sanitizeBodyForDisplay(selectedItem.body)}</div>
+              )}
+
+              <div className="space-y-3">
+                <div className="type-title text-nesio-ink">相关记忆</div>
+                {relatedItems.length === 0 && (
+                  <div className="type-body text-nesio-muted">暂无关联记忆。</div>
+                )}
+                {relatedItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedItem(item)}
+                    className="w-full ui-card-plain px-4 py-4 text-left active:scale-[0.99] transition"
+                  >
+                    <div className="type-body font-semibold text-nesio-ink truncate">{item.title}</div>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-nesio-border px-4 py-3">
+              <div className="grid grid-cols-3 gap-3">
+                <button type="button" className="ui-btn-primary rounded-full">阅读</button>
+                <button type="button" className="ui-btn-secondary rounded-full">回复</button>
+                <button type="button" className="ui-btn-secondary rounded-full">编辑</button>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   )
 }

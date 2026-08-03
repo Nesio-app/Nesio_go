@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nesio-app/Nesio_go/internal/vision"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
@@ -38,35 +39,35 @@ type createItemRequest struct {
 }
 
 type analyzeItemResponse struct {
-	Extraction         map[string]any `json:"extraction"`
-	Duplicates         []map[string]any `json:"duplicates"`
-	VisualHash         string         `json:"visual_hash"`
-	SuggestedRoomID    *uuid.UUID     `json:"suggested_room_id,omitempty"`
-	SuggestedContainerID *uuid.UUID   `json:"suggested_container_id,omitempty"`
-	ImageURL           string         `json:"image_url,omitempty"`
+	Extraction           map[string]any   `json:"extraction"`
+	Duplicates           []map[string]any `json:"duplicates"`
+	VisualHash           string           `json:"visual_hash"`
+	SuggestedRoomID      *uuid.UUID       `json:"suggested_room_id,omitempty"`
+	SuggestedContainerID *uuid.UUID       `json:"suggested_container_id,omitempty"`
+	ImageURL             string           `json:"image_url,omitempty"`
 }
 
 type listItemResponse struct {
-	ID               uuid.UUID  `db:"id" json:"id"`
-	Name             string     `db:"name" json:"name"`
-	Type             string     `db:"type" json:"type"`
-	Body             *string    `db:"body" json:"body,omitempty"`
-	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
-	RoomID           *uuid.UUID `db:"room_id" json:"room_id,omitempty"`
-	ContainerID      *uuid.UUID `db:"container_id" json:"container_id,omitempty"`
-	LocationNote     *string    `db:"location_note" json:"location_note,omitempty"`
-	RoomName         *string    `db:"room_name" json:"room_name,omitempty"`
-	RoomIcon         *string    `db:"room_icon" json:"room_icon,omitempty"`
-	ContainerName    *string    `db:"container_name" json:"container_name,omitempty"`
-	ContainerIcon    *string    `db:"container_icon" json:"container_icon,omitempty"`
-	ExpiryDate       *time.Time `db:"expiry_date" json:"expiry_date,omitempty"`
-	IsDocument       bool       `db:"is_document" json:"is_document"`
-	DocumentType     *string    `db:"document_type" json:"document_type,omitempty"`
-	DocumentNumber   *string    `db:"document_number" json:"document_number,omitempty"`
-	Quantity         int        `db:"quantity" json:"quantity"`
-	Unit             *string    `db:"unit" json:"unit,omitempty"`
-	PrimaryImageURL  *string    `db:"primary_image_url" json:"primary_image_url,omitempty"`
-	DaysUntilExpiry  *int       `db:"days_until_expiry" json:"days_until_expiry,omitempty"`
+	ID              uuid.UUID  `db:"id" json:"id"`
+	Name            string     `db:"name" json:"name"`
+	Type            string     `db:"type" json:"type"`
+	Body            *string    `db:"body" json:"body,omitempty"`
+	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
+	RoomID          *uuid.UUID `db:"room_id" json:"room_id,omitempty"`
+	ContainerID     *uuid.UUID `db:"container_id" json:"container_id,omitempty"`
+	LocationNote    *string    `db:"location_note" json:"location_note,omitempty"`
+	RoomName        *string    `db:"room_name" json:"room_name,omitempty"`
+	RoomIcon        *string    `db:"room_icon" json:"room_icon,omitempty"`
+	ContainerName   *string    `db:"container_name" json:"container_name,omitempty"`
+	ContainerIcon   *string    `db:"container_icon" json:"container_icon,omitempty"`
+	ExpiryDate      *time.Time `db:"expiry_date" json:"expiry_date,omitempty"`
+	IsDocument      bool       `db:"is_document" json:"is_document"`
+	DocumentType    *string    `db:"document_type" json:"document_type,omitempty"`
+	DocumentNumber  *string    `db:"document_number" json:"document_number,omitempty"`
+	Quantity        int        `db:"quantity" json:"quantity"`
+	Unit            *string    `db:"unit" json:"unit,omitempty"`
+	PrimaryImageURL *string    `db:"primary_image_url" json:"primary_image_url,omitempty"`
+	DaysUntilExpiry *int       `db:"days_until_expiry" json:"days_until_expiry,omitempty"`
 }
 
 func (s *Server) handleListItems(c echo.Context) error {
@@ -442,7 +443,7 @@ func (s *Server) handleAnalyzeItem(c echo.Context) error {
 	}
 
 	name := strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename))
-	if name == "" {
+	if name == "" || isGenericCameraFilename(name) {
 		name = "新物品"
 	}
 
@@ -458,12 +459,37 @@ func (s *Server) handleAnalyzeItem(c echo.Context) error {
 			"tags":                []string{"拍照", "待确认"},
 		},
 		Duplicates: []map[string]any{},
-		VisualHash: fmt.Sprintf("fallback-%d", len(content)),
+		VisualHash: vision.PHashBytes(content),
 	}
 	duplicates, _ := s.findDuplicates(c, userID, fallback.VisualHash, fallback.Extraction)
 	fallback.Duplicates = duplicates
 
 	return c.JSON(http.StatusOK, fallback)
+}
+
+func isGenericCameraFilename(name string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(name))
+	if trimmed == "" {
+		return true
+	}
+	if trimmed == "image" || trimmed == "photo" || trimmed == "img" || trimmed == "scan" || trimmed == "camera" || trimmed == "screenshot" {
+		return true
+	}
+	for _, prefix := range []string{"img_", "dsc_", "pxl_", "mvimg_", "wx_camera_", "camera_"} {
+		if strings.HasPrefix(trimmed, prefix) {
+			allDigits := true
+			for _, ch := range trimmed[len(prefix):] {
+				if ch < '0' || ch > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Server) handleWhereIsItemPhoto(c echo.Context) error {
@@ -622,11 +648,11 @@ func (s *Server) findDuplicates(c echo.Context, userID uuid.UUID, visualHash str
 		if err == nil {
 			for _, row := range rows {
 				duplicates = append(duplicates, map[string]any{
-					"id": row.ID,
-					"name": row.Name,
-					"room_name": row.RoomName,
+					"id":             row.ID,
+					"name":           row.Name,
+					"room_name":      row.RoomName,
 					"container_name": row.ContainerName,
-					"match_type": "visual",
+					"match_type":     "visual",
 				})
 			}
 		}
@@ -653,11 +679,11 @@ func (s *Server) findDuplicates(c echo.Context, userID uuid.UUID, visualHash str
 			if err == nil {
 				for _, row := range rows {
 					duplicates = append(duplicates, map[string]any{
-						"id": row.ID,
-						"name": row.Name,
-						"room_name": row.RoomName,
+						"id":             row.ID,
+						"name":           row.Name,
+						"room_name":      row.RoomName,
 						"container_name": row.ContainerName,
-						"match_type": "name",
+						"match_type":     "name",
 					})
 				}
 			}
