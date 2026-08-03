@@ -731,7 +731,7 @@ func (s *Server) handleListExpiringItems(c echo.Context) error {
 		LEFT JOIN containers ct ON ct.id = i.container_id
 		WHERE n.user_id = $1 AND n.type = 'thing'
 		  AND i.expiry_date IS NOT NULL
-		  AND i.expiry_date <= CURRENT_DATE + $2
+		  AND i.expiry_date <= CURRENT_DATE + ($2::int)
 		ORDER BY i.expiry_date ASC
 	`, userID, days)
 	if err != nil {

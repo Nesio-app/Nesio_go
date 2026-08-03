@@ -105,6 +105,18 @@ export default function ItemsPage({ onOpenItem }: Props) {
     },
   })
 
+  const snoozeExpiryMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      await items.snoozeExpiry(itemId)
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['items-expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+      ])
+    },
+  })
+
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
       <div className="type-h1 text-nesio-ink">物品</div>
@@ -242,15 +254,44 @@ export default function ItemsPage({ onOpenItem }: Props) {
       <div className="ui-card-plain p-4">
         <div className="type-title text-nesio-ink mb-2">即将到期</div>
         {expiring.slice(0, 4).map((item) => (
-          <div key={item.id} className="type-body text-nesio-muted py-1">{item.name}</div>
+          <div key={item.id} className="py-2 border-b border-nesio-border last:border-b-0">
+            <button
+              onClick={() => onOpenItem?.(item.id)}
+              className="type-body text-nesio-muted text-left w-full"
+            >
+              {item.name}
+            </button>
+            <div className="mt-1 flex justify-between items-center">
+              <div className="type-caption text-nesio-muted">
+                {typeof item.days_until_expiry === 'number'
+                  ? (item.days_until_expiry >= 0 ? `${item.days_until_expiry} 天后到期` : `已过期 ${-item.days_until_expiry} 天`)
+                  : '到期时间未知'}
+              </div>
+              <button
+                onClick={() => snoozeExpiryMutation.mutate(item.id)}
+                disabled={snoozeExpiryMutation.isPending}
+                className="ui-btn-ghost px-2 py-1"
+              >
+                稍后提醒
+              </button>
+            </div>
+          </div>
         ))}
+        {expiring.length === 0 && <div className="type-body text-nesio-muted">暂无临期物品。</div>}
       </div>
 
       <div className="ui-card-plain p-4">
         <div className="type-title text-nesio-ink mb-2">证件到期</div>
         {docs.slice(0, 4).map((item) => (
-          <div key={item.id} className="type-body text-nesio-muted py-1">{item.name}</div>
+          <button
+            key={item.id}
+            onClick={() => onOpenItem?.(item.id)}
+            className="type-body text-nesio-muted py-1 text-left w-full"
+          >
+            {item.name}
+          </button>
         ))}
+        {docs.length === 0 && <div className="type-body text-nesio-muted">暂无证件物品。</div>}
       </div>
     </div>
   )
