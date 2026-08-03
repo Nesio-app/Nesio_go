@@ -10,8 +10,9 @@ import AuthPage from './pages/AuthPage'
 import CapturePage from './pages/CapturePage'
 import RecognitionResultPage from './pages/RecognitionResultPage'
 import ItemDetailPage from './pages/ItemDetailPage'
+import RoomsPage from './pages/RoomsPage'
 
-type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items' | 'item-detail'
+type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items' | 'item-detail' | 'rooms'
 type ThemeMode = 'light' | 'dark'
 type Palette = 'dawn' | 'ocean' | 'forest'
 
@@ -109,6 +110,7 @@ export default function App() {
         )}
         {tab === 'items' && (
           <ItemsPage
+            onOpenRooms={() => navigate('rooms')}
             onOpenItem={(itemId) => {
               setSelectedItemId(itemId)
               setPrevTab('items')
@@ -116,6 +118,7 @@ export default function App() {
             }}
           />
         )}
+        {tab === 'rooms' && <RoomsPage onBack={() => setTab('items')} />}
         {tab === 'item-detail' && selectedItemId && (
           <ItemDetailPage
             itemId={selectedItemId}

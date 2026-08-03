@@ -5,9 +5,10 @@ import WhereIs from '../components/WhereIs'
 
 interface Props {
   onOpenItem?: (itemId: string) => void
+  onOpenRooms?: () => void
 }
 
-export default function ItemsPage({ onOpenItem }: Props) {
+export default function ItemsPage({ onOpenItem, onOpenRooms }: Props) {
   const queryClient = useQueryClient()
   const [selectedRoom, setSelectedRoom] = useState<string>('')
   const [selectedContainer, setSelectedContainer] = useState<string>('')
@@ -119,7 +120,10 @@ export default function ItemsPage({ onOpenItem }: Props) {
 
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
-      <div className="type-h1 text-nesio-ink">物品</div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="type-h1 text-nesio-ink">物品</div>
+        <button onClick={() => onOpenRooms?.()} className="ui-btn-secondary">管理房间</button>
+      </div>
 
       {hasError && (
         <div className="ui-card p-4">
