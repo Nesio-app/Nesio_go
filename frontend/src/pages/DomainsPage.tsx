@@ -111,6 +111,13 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
     },
   })
   const selectedOverview = overviewData?.find((item) => item.label === selectedLabel)
+  const overviewByLabel = useMemo(() => {
+    const map = new Map<string, { task_count: number; memory_count: number }>()
+    for (const item of overviewData ?? []) {
+      map.set(item.label, { task_count: item.task_count, memory_count: item.memory_count })
+    }
+    return map
+  }, [overviewData])
   const createTaskMutation = useMutation({
     mutationFn: async () => domainsApi.createTask(selectedLabel, { title: taskTitle }),
     onSuccess: async () => {
@@ -346,7 +353,9 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
         <div className="text-sm text-nesio-muted mt-1">每个入口现在都有一个可落地的领域看板，而不只是空壳。</div>
       </div>
       <div className="grid grid-cols-4 gap-3">
-        {domains.map((d) => (
+        {domains.map((d) => {
+          const overview = overviewByLabel.get(d.label)
+          return (
           <button
             key={d.label}
             onClick={() => {
@@ -362,10 +371,11 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
             </div>
             <span className="text-sm text-nesio-ink font-medium">{d.label}</span>
             <span className="type-caption text-nesio-muted">
-              {selectedLabel === d.label && selectedOverview ? `任务${selectedOverview.task_count} 记忆${selectedOverview.memory_count}` : d.metric}
+              {overview ? `任务${overview.task_count} 记忆${overview.memory_count}` : d.metric}
             </span>
           </button>
-        ))}
+          )
+        })}
       </div>
 
       <div className="nesio-card p-5 space-y-4">
