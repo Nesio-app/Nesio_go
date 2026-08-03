@@ -17,9 +17,12 @@ interface ItemDetail {
   room_icon?: string | null
   container_name?: string | null
   container_icon?: string | null
+  location_note?: string | null
   expiry_date?: string | null
   days_until_expiry?: number | null
   is_document?: boolean
+  document_type?: string | null
+  document_number?: string | null
   quantity?: number
   unit?: string | null
   primary_image_url?: string | null
@@ -43,7 +46,11 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
   const [bodyDraft, setBodyDraft] = useState('')
   const [roomIdDraft, setRoomIdDraft] = useState('')
   const [containerIdDraft, setContainerIdDraft] = useState('')
+  const [locationNoteDraft, setLocationNoteDraft] = useState('')
   const [expiryDateDraft, setExpiryDateDraft] = useState('')
+  const [isDocumentDraft, setIsDocumentDraft] = useState(false)
+  const [documentTypeDraft, setDocumentTypeDraft] = useState('')
+  const [documentNumberDraft, setDocumentNumberDraft] = useState('')
   const [quantityDraft, setQuantityDraft] = useState(1)
 
   const itemQuery = useQuery({
@@ -71,7 +78,11 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
         body: bodyDraft || undefined,
         room_id: roomIdDraft || undefined,
         container_id: containerIdDraft || undefined,
+        location_note: locationNoteDraft || undefined,
         expiry_date: expiryDateDraft || undefined,
+        is_document: isDocumentDraft,
+        document_type: documentTypeDraft || undefined,
+        document_number: documentNumberDraft || undefined,
         quantity: quantityDraft,
       })
     },
@@ -148,7 +159,11 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
               setBodyDraft(item.body ?? '')
               setRoomIdDraft(item.room_id ?? '')
               setContainerIdDraft(item.container_id ?? '')
+              setLocationNoteDraft(item.location_note ?? '')
               setExpiryDateDraft(dateInputValue(item.expiry_date))
+              setIsDocumentDraft(Boolean(item.is_document))
+              setDocumentTypeDraft(item.document_type ?? '')
+              setDocumentNumberDraft(item.document_number ?? '')
               setQuantityDraft(item.quantity ?? 1)
             }
             setIsEditing((v) => !v)
@@ -180,7 +195,18 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
                 <option key={container.id} value={container.id}>{container.name}</option>
               ))}
             </select>
+            <input value={locationNoteDraft} onChange={(e) => setLocationNoteDraft(e.target.value)} placeholder="位置备注（如：第二层抽屉）" className="ui-input" />
             <input type="date" value={expiryDateDraft} onChange={(e) => setExpiryDateDraft(e.target.value)} className="ui-input" />
+            <label className="flex items-center gap-2 type-body text-nesio-muted">
+              <input type="checkbox" checked={isDocumentDraft} onChange={(e) => setIsDocumentDraft(e.target.checked)} />
+              这是证件
+            </label>
+            {isDocumentDraft && (
+              <>
+                <input value={documentTypeDraft} onChange={(e) => setDocumentTypeDraft(e.target.value)} placeholder="证件类型（passport/visa/license）" className="ui-input" />
+                <input value={documentNumberDraft} onChange={(e) => setDocumentNumberDraft(e.target.value)} placeholder="证件号码" className="ui-input" />
+              </>
+            )}
             <input
               type="number"
               min={1}
@@ -197,6 +223,7 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
             <div className="type-h2 text-nesio-ink">{item.name}</div>
             {item.body && <div className="type-body text-nesio-muted">{item.body}</div>}
             <div className="type-body text-nesio-muted">位置：{locationText}</div>
+            {item.location_note && <div className="type-body text-nesio-muted">备注：{item.location_note}</div>}
             <div className="type-body text-nesio-muted">数量：{item.quantity ?? 1} {item.unit ?? '个'}</div>
             {item.expiry_date && (
               <div className="type-body text-nesio-muted">
@@ -206,7 +233,13 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
                 )}
               </div>
             )}
-            {item.is_document && <div className="type-caption text-nesio-accent">证件类型物品</div>}
+            {item.is_document && (
+              <div className="space-y-1">
+                <div className="type-caption text-nesio-accent">证件类型物品</div>
+                {item.document_type && <div className="type-caption text-nesio-muted">证件类型：{item.document_type}</div>}
+                {item.document_number && <div className="type-caption text-nesio-muted">证件号码：{item.document_number}</div>}
+              </div>
+            )}
           </>
         )}
       </div>

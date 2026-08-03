@@ -46,40 +46,40 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
     return `${room?.name ?? ''} · ${container?.name ?? ''}`.trim()
   }, [roomId, containerId, roomsQuery.data, containersQuery.data])
 
+  const createPayload = useMemo(() => {
+    const extraction = result.extraction ?? {}
+    const isDocument = Boolean(extraction.is_document)
+    const documentType = typeof extraction.document_type === 'string' ? extraction.document_type : undefined
+    const documentNumber = typeof extraction.document_number === 'string' ? extraction.document_number : undefined
+
+    return {
+      name: name || '未命名物品',
+      body: description || undefined,
+      room_id: roomId || undefined,
+      container_id: containerId || undefined,
+      expiry_date: expiryDate || undefined,
+      quantity: 1,
+      unit: '个',
+      visual_hash: result.visual_hash,
+      reminder_label: reminderLabel || undefined,
+      tags: Array.isArray(extraction.tags) ? extraction.tags : ['拍照识别'],
+      primary_image_url: previewUrl,
+      is_document: isDocument,
+      document_type: documentType,
+      document_number: documentNumber,
+    }
+  }, [containerId, description, expiryDate, name, previewUrl, reminderLabel, result.extraction, result.visual_hash, roomId])
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await items.create({
-        name: name || '未命名物品',
-        body: description || undefined,
-        room_id: roomId || undefined,
-        container_id: containerId || undefined,
-        expiry_date: expiryDate || undefined,
-        quantity: 1,
-        unit: '个',
-        visual_hash: result.visual_hash,
-        reminder_label: reminderLabel || undefined,
-        tags: Array.isArray(result.extraction?.tags) ? result.extraction.tags : ['拍照识别'],
-        primary_image_url: previewUrl,
-      })
+      await items.create(createPayload)
     },
     onSuccess: () => onClose(),
   })
 
   const mergeDuplicateMutation = useMutation({
     mutationFn: async (targetItemId: string) => {
-      await items.create({
-        name: name || '未命名物品',
-        body: description || undefined,
-        room_id: roomId || undefined,
-        container_id: containerId || undefined,
-        expiry_date: expiryDate || undefined,
-        quantity: 1,
-        unit: '个',
-        visual_hash: result.visual_hash,
-        reminder_label: reminderLabel || undefined,
-        tags: Array.isArray(result.extraction?.tags) ? result.extraction.tags : ['拍照识别'],
-        primary_image_url: previewUrl,
-      }).then((res) => res.data as { id: string })
+      await items.create(createPayload).then((res) => res.data as { id: string })
         .then(async (created) => {
           await items.duplicate(created.id, targetItemId, 1)
         })

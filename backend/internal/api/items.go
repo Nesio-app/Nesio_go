@@ -54,12 +54,15 @@ type listItemResponse struct {
 	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
 	RoomID           *uuid.UUID `db:"room_id" json:"room_id,omitempty"`
 	ContainerID      *uuid.UUID `db:"container_id" json:"container_id,omitempty"`
+	LocationNote     *string    `db:"location_note" json:"location_note,omitempty"`
 	RoomName         *string    `db:"room_name" json:"room_name,omitempty"`
 	RoomIcon         *string    `db:"room_icon" json:"room_icon,omitempty"`
 	ContainerName    *string    `db:"container_name" json:"container_name,omitempty"`
 	ContainerIcon    *string    `db:"container_icon" json:"container_icon,omitempty"`
 	ExpiryDate       *time.Time `db:"expiry_date" json:"expiry_date,omitempty"`
 	IsDocument       bool       `db:"is_document" json:"is_document"`
+	DocumentType     *string    `db:"document_type" json:"document_type,omitempty"`
+	DocumentNumber   *string    `db:"document_number" json:"document_number,omitempty"`
 	Quantity         int        `db:"quantity" json:"quantity"`
 	Unit             *string    `db:"unit" json:"unit,omitempty"`
 	PrimaryImageURL  *string    `db:"primary_image_url" json:"primary_image_url,omitempty"`
@@ -82,12 +85,15 @@ func (s *Server) handleListItems(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
@@ -244,12 +250,15 @@ func (s *Server) handleGetItem(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
@@ -351,12 +360,15 @@ func (s *Server) handleWhereIsItem(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
@@ -486,12 +498,15 @@ func (s *Server) handleWhereIsItemPhoto(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
@@ -689,12 +704,15 @@ func (s *Server) handleListExpiringItems(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
@@ -727,12 +745,15 @@ func (s *Server) handleListDocuments(c echo.Context) error {
 			n.created_at,
 			i.room_id,
 			i.container_id,
+			i.location_note,
 			r.name AS room_name,
 			r.icon AS room_icon,
 			ct.name AS container_name,
 			ct.icon AS container_icon,
 			i.expiry_date,
 			i.is_document,
+			i.document_type,
+			i.document_number,
 			i.quantity,
 			i.unit,
 			i.primary_image_url,
