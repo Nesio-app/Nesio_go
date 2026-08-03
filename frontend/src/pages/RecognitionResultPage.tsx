@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { containers, items, rooms } from '../api/client'
 import DuplicateAlert from '../components/DuplicateAlert'
+import LocationPicker from '../components/LocationPicker'
 
 interface AnalyzeResult {
   extraction: Record<string, any>
@@ -113,27 +114,17 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
             className="w-full border-b border-nesio-border bg-transparent px-2 py-3 type-body text-nesio-muted outline-none"
           />
 
-          <div className="grid grid-cols-[84px,1fr] items-center gap-3">
-            <span className="type-body text-nesio-muted">存放位置</span>
-            <select value={roomId} onChange={(e) => { setRoomId(e.target.value); setContainerId('') }} className="ui-input font-semibold bg-nesio-accentSoft">
-              <option value="">选择地点...</option>
-              {roomsQuery.data?.map((room) => (
-                <option key={room.id} value={room.id}>{room.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {roomId && (
-            <div className="grid grid-cols-[84px,1fr] items-center gap-3">
-              <span className="type-body text-nesio-muted">容器</span>
-              <select value={containerId} onChange={(e) => setContainerId(e.target.value)} className="ui-input">
-                <option value="">未设置容器</option>
-                {containersQuery.data?.map((container) => (
-                  <option key={container.id} value={container.id}>{container.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <LocationPicker
+            roomId={roomId}
+            containerId={containerId}
+            rooms={(roomsQuery.data ?? []).map((room) => ({ id: room.id, name: room.name }))}
+            containers={(containersQuery.data ?? []).map((container) => ({ id: container.id, name: container.name }))}
+            onRoomChange={(value) => {
+              setRoomId(value)
+              setContainerId('')
+            }}
+            onContainerChange={setContainerId}
+          />
 
           <div className="grid grid-cols-[84px,1fr] items-center gap-3">
             <span className="type-body text-nesio-muted">价格</span>

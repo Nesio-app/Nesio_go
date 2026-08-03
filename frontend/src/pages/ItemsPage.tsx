@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { containers, items, rooms } from '../api/client'
 import WhereIs from '../components/WhereIs'
+import ItemCard from '../components/ItemCard'
 
 interface Props {
   onOpenItem?: (itemId: string) => void
@@ -239,17 +240,7 @@ export default function ItemsPage({ onOpenItem, onOpenRooms }: Props) {
           <div className="ui-card-plain p-4 type-body text-nesio-muted">还没有物品记录，先用拍照或上传添加一个。</div>
         )}
         {(itemsQuery.data ?? []).map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onOpenItem?.(item.id)}
-            className="ui-card-plain p-4 text-left w-full"
-          >
-            <div className="type-title text-nesio-ink">{item.name}</div>
-            <div className="type-body text-nesio-muted mt-1">{item.room_name ?? '未设置房间'} · {item.container_name ?? '未设置容器'}</div>
-            {typeof item.days_until_expiry === 'number' && (
-              <div className="type-caption text-nesio-accent mt-2">{item.days_until_expiry < 0 ? `已过期 ${-item.days_until_expiry} 天` : `${item.days_until_expiry} 天后到期`}</div>
-            )}
-          </button>
+          <ItemCard key={item.id} item={item} onOpen={onOpenItem} />
         ))}
       </div>
 
