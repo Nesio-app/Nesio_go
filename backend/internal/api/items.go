@@ -400,9 +400,13 @@ func (s *Server) handleWhereIsItem(c echo.Context) error {
 		if item.ContainerName != nil && *item.ContainerName != "" {
 			containerName = *item.ContainerName
 		}
+		answer := fmt.Sprintf("%s 放在 %s %s", item.Name, roomName, containerName)
+		if item.LocationNote != nil && strings.TrimSpace(*item.LocationNote) != "" {
+			answer += "，" + strings.TrimSpace(*item.LocationNote)
+		}
 		return c.JSON(http.StatusOK, map[string]any{
 			"type":   "found",
-			"answer": fmt.Sprintf("%s 放在 %s %s", item.Name, roomName, containerName),
+			"answer": answer,
 			"item":   item,
 		})
 	}
@@ -536,7 +540,11 @@ func (s *Server) handleWhereIsItemPhoto(c echo.Context) error {
 		if item.ContainerName != nil && *item.ContainerName != "" {
 			containerName = *item.ContainerName
 		}
-		return c.JSON(http.StatusOK, map[string]any{"type": "found", "answer": fmt.Sprintf("%s 放在 %s %s", item.Name, roomName, containerName), "item": item})
+		answer := fmt.Sprintf("%s 放在 %s %s", item.Name, roomName, containerName)
+		if item.LocationNote != nil && strings.TrimSpace(*item.LocationNote) != "" {
+			answer += "，" + strings.TrimSpace(*item.LocationNote)
+		}
+		return c.JSON(http.StatusOK, map[string]any{"type": "found", "answer": answer, "item": item})
 	}
 	return c.JSON(http.StatusOK, map[string]any{"type": "multiple", "answer": fmt.Sprintf("找到了 %d 个相关物品", len(items)), "items": items})
 }
