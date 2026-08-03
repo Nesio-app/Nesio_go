@@ -106,7 +106,7 @@ func (s *Server) handleListTasks(c echo.Context) error {
 	query := `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
-		WHERE user_id = $1 AND status = $2
+		WHERE user_id = $1 AND type = 'task' AND status = $2
 		AND ($3 = '' OR domain = $3)
 		ORDER BY due_date ASC NULLS LAST, created_at DESC
 	`

@@ -526,7 +526,7 @@ func (s *Server) forwardAnalyzeToAI(c echo.Context, userID uuid.UUID, filename s
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, aiURL+"/items/analyze", &body)
+	req, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, aiURL+"/vision/analyze", &body)
 	if err != nil {
 		return nil, err
 	}

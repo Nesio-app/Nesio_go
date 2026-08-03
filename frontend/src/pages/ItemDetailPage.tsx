@@ -42,6 +42,7 @@ function dateInputValue(iso?: string | null): string {
 export default function ItemDetailPage({ itemId, onBack }: Props) {
   const queryClient = useQueryClient()
   const [isEditing, setIsEditing] = useState(false)
+  const [isReading, setIsReading] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
   const [bodyDraft, setBodyDraft] = useState('')
   const [roomIdDraft, setRoomIdDraft] = useState('')
@@ -245,6 +246,13 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
       </div>
 
       <div className="grid grid-cols-1 gap-2">
+        <button
+          onClick={() => setIsReading(true)}
+          disabled={!item.body && !item.primary_image_url}
+          className="ui-btn-secondary w-full"
+        >
+          阅读
+        </button>
         <button onClick={() => snoozeMutation.mutate()} disabled={snoozeMutation.isPending} className="ui-btn-secondary w-full">
           {snoozeMutation.isPending ? '处理中...' : '推迟到期提醒（+7天）'}
         </button>
@@ -252,6 +260,38 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
           {deleteMutation.isPending ? '删除中...' : '删除物品'}
         </button>
       </div>
+
+      {isReading && (
+        <>
+          <button
+            type="button"
+            aria-label="关闭阅读器"
+            onClick={() => setIsReading(false)}
+            className="fixed inset-0 z-[60] bg-black/35"
+          />
+          <section className="fixed inset-0 z-[70] bg-white overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-nesio-border px-4 py-3 flex items-center justify-between">
+              <div className="type-title text-nesio-ink">物品阅读器</div>
+              <button
+                type="button"
+                onClick={() => setIsReading(false)}
+                className="ui-btn-secondary rounded-full px-4"
+              >
+                关闭
+              </button>
+            </div>
+            <article className="px-5 py-6 space-y-5">
+              <h3 className="text-3xl font-semibold text-nesio-ink break-words">{item.name}</h3>
+              {item.primary_image_url && (
+                <img src={item.primary_image_url} alt={item.name} className="w-full rounded-2xl object-cover" />
+              )}
+              <div className="type-body text-nesio-ink whitespace-pre-wrap leading-8 break-words">
+                {item.body?.trim() || '这条物品没有正文备注。'}
+              </div>
+            </article>
+          </section>
+        </>
+      )}
     </div>
   )
 }

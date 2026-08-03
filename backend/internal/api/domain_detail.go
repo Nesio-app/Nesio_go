@@ -44,7 +44,7 @@ func (s *Server) handleDomainDetail(c echo.Context) error {
 	if err := s.store.DB.Select(&memory, `
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
-		WHERE user_id = $1 AND domain = $2 AND type = 'memory'
+		WHERE user_id = $1 AND domain = $2 AND (type = 'memory' OR type = 'mind')
 		ORDER BY updated_at DESC
 	`, userID, domain); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())

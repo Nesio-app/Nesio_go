@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/connector"
@@ -26,7 +27,7 @@ var gmailScopes = "https://www.googleapis.com/auth/gmail.readonly https://www.go
 func (s *Server) handleGmailOAuthAuthorize(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
 	clientID := os.Getenv("GOOGLE_CLIENT_ID")
-	if clientID == "" {
+	if !isValidGoogleClientID(clientID) {
 		return echo.NewHTTPError(http.StatusServiceUnavailable, "GOOGLE_CLIENT_ID not configured")
 	}
 
@@ -175,4 +176,18 @@ func googleRedirectURI() string {
 		return v
 	}
 	return "http://localhost:8080/api/v1/connectors/gmail/oauth/callback"
+}
+
+func isValidGoogleClientID(clientID string) bool {
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		return false
+	}
+	if strings.HasPrefix(clientID, "your_client_id") {
+		return false
+	}
+	if strings.Contains(strings.ToLower(clientID), "placeholder") {
+		return false
+	}
+	return strings.HasSuffix(clientID, ".apps.googleusercontent.com")
 }

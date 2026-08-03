@@ -44,14 +44,20 @@ func (s *Server) handleAsk(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "question is required")
 	}
 
+	sources, contextText, err := s.buildAskContext(c, userID, question)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
 	aiURL := strings.TrimSpace(os.Getenv("AI_SERVICE_URL"))
 	if aiURL == "" {
 		aiURL = "http://ai-service:8000"
 	}
 
 	payload, _ := json.Marshal(map[string]any{
-		"question": question,
-		"user_id":  userID.String(),
+		"message": contextText,
+		"tier":    "deep",
+		"mode":    "chat",
 	})
 
 	httpReq, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, aiURL+"/ask", bytes.NewReader(payload))
@@ -64,12 +70,23 @@ func (s *Server) handleAsk(c echo.Context) error {
 	if err != nil {
 		fallback, fallbackErr := callAIService(question, "standard", "chat")
 		if fallbackErr != nil {
-			return echo.NewHTTPError(http.StatusBadGateway, "ask unavailable")
+			return c.JSON(http.StatusOK, map[string]any{
+				"type":    "direct",
+				"answer":  synthesizeAskAnswer(question, sources),
+				"sources": sources,
+			})
+		}
+		if strings.Contains(strings.ToLower(fallback.Content), "ai not configured") {
+			return c.JSON(http.StatusOK, map[string]any{
+				"type":    "direct",
+				"answer":  synthesizeAskAnswer(question, sources),
+				"sources": sources,
+			})
 		}
 		return c.JSON(http.StatusOK, map[string]any{
 			"type":    "direct",
 			"answer":  fallback.Content,
-			"sources": []any{},
+			"sources": sources,
 		})
 	}
 	defer resp.Body.Close()
@@ -78,12 +95,23 @@ func (s *Server) handleAsk(c echo.Context) error {
 	if resp.StatusCode >= 300 {
 		fallback, fallbackErr := callAIService(question, "standard", "chat")
 		if fallbackErr != nil {
-			return echo.NewHTTPError(http.StatusBadGateway, fmt.Sprintf("ask failed: %s", strings.TrimSpace(string(body))))
+			return c.JSON(http.StatusOK, map[string]any{
+				"type":    "direct",
+				"answer":  synthesizeAskAnswer(question, sources),
+				"sources": sources,
+			})
+		}
+		if strings.Contains(strings.ToLower(fallback.Content), "ai not configured") {
+			return c.JSON(http.StatusOK, map[string]any{
+				"type":    "direct",
+				"answer":  synthesizeAskAnswer(question, sources),
+				"sources": sources,
+			})
 		}
 		return c.JSON(http.StatusOK, map[string]any{
 			"type":    "direct",
 			"answer":  fallback.Content,
-			"sources": []any{},
+			"sources": sources,
 		})
 	}
 
@@ -91,7 +119,246 @@ func (s *Server) handleAsk(c echo.Context) error {
 	if err := json.Unmarshal(body, &data); err != nil {
 		return echo.NewHTTPError(http.StatusBadGateway, "invalid ask response")
 	}
+	if _, ok := data["sources"]; !ok {
+		data["sources"] = sources
+	}
+	if answer, ok := data["answer"].(string); ok && strings.Contains(strings.ToLower(answer), "ai not configured") {
+		data["answer"] = synthesizeAskAnswer(question, sources)
+	}
 	return c.JSON(http.StatusOK, data)
+}
+
+func synthesizeAskAnswer(question string, sources []map[string]any) string {
+	q := strings.TrimSpace(question)
+	if len(sources) == 0 {
+		return "暂时没有找到足够的本地资料来回答这个问题。"
+	}
+
+	lines := []string{fmt.Sprintf("我根据你本地的资料找到了 %d 条相关内容：", len(sources))}
+	for idx, source := range sources {
+		if idx >= 3 {
+			break
+		}
+		kind, _ := source["kind"].(string)
+		title := ""
+		if v, ok := source["title"].(string); ok {
+			title = v
+		}
+		if title == "" {
+			if v, ok := source["name"].(string); ok {
+				title = v
+			}
+		}
+		switch kind {
+		case "memory":
+			lines = append(lines, fmt.Sprintf("- 记忆：%s", title))
+		case "task":
+			lines = append(lines, fmt.Sprintf("- 任务：%s", title))
+		case "thing":
+			lines = append(lines, fmt.Sprintf("- 物品：%s", title))
+		case "today_card":
+			lines = append(lines, fmt.Sprintf("- 今日卡片：%s", title))
+		case "reminder":
+			lines = append(lines, fmt.Sprintf("- 提醒：%s", title))
+		default:
+			lines = append(lines, fmt.Sprintf("- %s", title))
+		}
+	}
+	lines = append(lines, "", "你可以继续问我更具体一点，我会基于这些资料继续帮你找。")
+	if q != "" {
+		return strings.Join(lines, "\n")
+	}
+	return "我找到了相关资料，但还需要你把问题说得更具体一点。"
+}
+
+func (s *Server) buildAskContext(c echo.Context, userID uuid.UUID, question string) ([]map[string]any, string, error) {
+	query := strings.TrimSpace(question)
+	if query == "" {
+		return []map[string]any{}, "", nil
+	}
+
+	sources := make([]map[string]any, 0, 12)
+	seen := map[string]struct{}{}
+	var snippets []string
+	appendSource := func(kind string, id uuid.UUID, title string, extra map[string]any, snippet string) {
+		key := kind + ":" + id.String()
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		entry := map[string]any{
+			"kind":  kind,
+			"id":    id,
+			"title": title,
+		}
+		for k, v := range extra {
+			entry[k] = v
+		}
+		sources = append(sources, entry)
+		if strings.TrimSpace(snippet) != "" {
+			snippets = append(snippets, snippet)
+		}
+	}
+
+	if memories, err := s.queryAskRecallNodesByTypes(userID, query, []string{lifeNodeTypeMemory, lifeNodeTypeMind}, 5); err == nil {
+		for _, row := range memories {
+			appendSource("memory", row.ID, row.Title, map[string]any{"type": row.Type}, askSnippetFromTitleBody(row.Title, row.Body))
+		}
+	}
+
+	var tasks []struct {
+		ID       uuid.UUID `db:"id"`
+		Title    string    `db:"title"`
+		Body     *string   `db:"body"`
+		Status   string    `db:"status"`
+		DueDate  *time.Time `db:"due_date"`
+	}
+	if err := s.store.DB.Select(&tasks, `
+		SELECT id, title, body, status, due_date
+		FROM life_nodes
+		WHERE user_id = $1 AND type = 'task'
+		  AND (
+			 title ILIKE '%' || $2 || '%'
+			 OR COALESCE(body, '') ILIKE '%' || $2 || '%'
+			 OR EXISTS (
+				 SELECT 1 FROM unnest(tags) AS tag WHERE tag ILIKE '%' || $2 || '%'
+			 )
+		  )
+		ORDER BY updated_at DESC
+		LIMIT 5
+	`, userID, query); err == nil {
+		for _, row := range tasks {
+			snippet := row.Title
+			if row.Body != nil && strings.TrimSpace(*row.Body) != "" {
+				snippet += "\n" + strings.TrimSpace(*row.Body)
+			}
+			if row.DueDate != nil {
+				snippet += fmt.Sprintf("\n截止时间：%s", row.DueDate.Format(time.RFC3339))
+			}
+			appendSource("task", row.ID, row.Title, map[string]any{"status": row.Status}, snippet)
+		}
+	}
+
+	var things []struct {
+		ID    uuid.UUID `db:"id"`
+		Title string    `db:"title"`
+		Body  *string   `db:"body"`
+		Room  *string   `db:"room_name"`
+		Container *string `db:"container_name"`
+	}
+	if err := s.store.DB.Select(&things, `
+		SELECT n.id, n.title, n.body, r.name AS room_name, ct.name AS container_name
+		FROM life_nodes n
+		LEFT JOIN item_details i ON i.node_id = n.id
+		LEFT JOIN rooms r ON r.id = i.room_id
+		LEFT JOIN containers ct ON ct.id = i.container_id
+		WHERE n.user_id = $1 AND n.type = 'thing'
+		  AND (
+			 n.title ILIKE '%' || $2 || '%'
+			 OR COALESCE(n.body, '') ILIKE '%' || $2 || '%'
+			 OR EXISTS (
+				 SELECT 1 FROM unnest(n.tags) AS tag WHERE tag ILIKE '%' || $2 || '%'
+			 )
+		  )
+		ORDER BY n.updated_at DESC
+		LIMIT 5
+	`, userID, query); err == nil {
+		for _, row := range things {
+			snippet := row.Title
+			if row.Body != nil && strings.TrimSpace(*row.Body) != "" {
+				snippet += "\n" + strings.TrimSpace(*row.Body)
+			}
+			locationParts := make([]string, 0, 2)
+			if row.Room != nil && strings.TrimSpace(*row.Room) != "" {
+				locationParts = append(locationParts, *row.Room)
+			}
+			if row.Container != nil && strings.TrimSpace(*row.Container) != "" {
+				locationParts = append(locationParts, *row.Container)
+			}
+			if len(locationParts) > 0 {
+				snippet += "\n位置：" + strings.Join(locationParts, " · ")
+			}
+			appendSource("thing", row.ID, row.Title, nil, snippet)
+		}
+	}
+
+	if nodeRefs, err := s.queryAskRecallNodesByTypes(userID, query, []string{lifeNodeTypePerson, lifeNodeTypeEvent, lifeNodeTypeCollection}, 5); err == nil {
+		for _, row := range nodeRefs {
+			appendSource(row.Type, row.ID, row.Title, nil, askSnippetFromTitleBody(row.Title, row.Body))
+		}
+	}
+
+	var cards []struct {
+		ID     uuid.UUID `db:"id"`
+		Title  string    `db:"title"`
+		Body   *string   `db:"body"`
+		Slot   string    `db:"slot"`
+		Severity int     `db:"severity"`
+	}
+	if err := s.store.DB.Select(&cards, `
+		SELECT id, title, body, slot, severity
+		FROM today_cards
+		WHERE user_id = $1
+		  AND dismissed_at IS NULL
+		  AND (title ILIKE '%' || $2 || '%' OR COALESCE(body, '') ILIKE '%' || $2 || '%')
+		ORDER BY severity DESC, created_at DESC
+		LIMIT 3
+	`, userID, query); err == nil {
+		for _, row := range cards {
+			appendSource("today_card", row.ID, row.Title, map[string]any{"slot": row.Slot, "severity": row.Severity}, askSnippetFromTitleBody(row.Title, row.Body))
+		}
+	}
+
+	var reminders []struct {
+		ID       uuid.UUID `db:"id"`
+		Title    string    `db:"title"`
+		RemindAt time.Time  `db:"remind_at"`
+	}
+	if err := s.store.DB.Select(&reminders, `
+		SELECT id, title, remind_at
+		FROM reminders
+		WHERE user_id = $1
+		  AND is_done = false
+		  AND title ILIKE '%' || $2 || '%'
+		ORDER BY remind_at ASC
+		LIMIT 3
+	`, userID, query); err == nil {
+		for _, row := range reminders {
+			appendSource("reminder", row.ID, row.Title, map[string]any{"remind_at": row.RemindAt}, fmt.Sprintf("%s\n提醒时间：%s", row.Title, row.RemindAt.Format(time.RFC3339)))
+		}
+	}
+
+	var briefs []struct {
+		ID       uuid.UUID `db:"id"`
+		LocalDay string    `db:"local_day"`
+		Content  string    `db:"content"`
+		IsRead   bool      `db:"is_read"`
+	}
+	if err := s.store.DB.Select(&briefs, `
+		SELECT id, local_day, content, is_read
+		FROM daily_briefs
+		WHERE user_id = $1
+		ORDER BY generated_at DESC
+		LIMIT 2
+	`, userID); err == nil {
+		for _, row := range briefs {
+			label := "日报"
+			if strings.TrimSpace(row.LocalDay) != "" {
+				label = fmt.Sprintf("日报 %s", row.LocalDay)
+			}
+			status := "未读"
+			if row.IsRead {
+				status = "已读"
+			}
+			appendSource("daily_brief", row.ID, label, map[string]any{"local_day": row.LocalDay, "is_read": row.IsRead}, fmt.Sprintf("%s（%s）\n%s", label, status, strings.TrimSpace(row.Content)))
+		}
+	}
+
+	contextText := question
+	if len(snippets) > 0 {
+		contextText = fmt.Sprintf("你是 Nesio 的问一问，请基于以下本地资料回答用户问题。\n\n问题：%s\n\n相关资料：\n%s\n\n要求：\n- 优先使用相关资料回答\n- 如果资料不足，明确说明不确定\n- 答案简洁、直接、可执行\n", question, strings.Join(snippets, "\n\n---\n\n"))
+	}
+	return sources, contextText, nil
 }
 
 func (s *Server) handleExtractionAnalyze(c echo.Context) error {
@@ -218,7 +485,13 @@ func (s *Server) handleNodesMention(c echo.Context) error {
 	err := s.store.DB.Select(&rows, `
 		SELECT id, type, title
 		FROM life_nodes
-		WHERE user_id = $1 AND (title ILIKE '%' || $2 || '%' OR COALESCE(body, '') ILIKE '%' || $2 || '%')
+		WHERE user_id = $1 AND (
+			title ILIKE '%' || $2 || '%'
+			OR COALESCE(body, '') ILIKE '%' || $2 || '%'
+			OR EXISTS (
+				SELECT 1 FROM unnest(tags) AS tag WHERE tag ILIKE '%' || $2 || '%'
+			)
+		)
 		ORDER BY updated_at DESC
 		LIMIT $3
 	`, userID, q, limit)

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -335,6 +336,12 @@ func fetchPlaidSignals(ctx context.Context, credentials map[string]any) ([]model
 	clientID, _ := credentials["client_id"].(string)
 	secret, _ := credentials["secret"].(string)
 	accessToken, _ := credentials["access_token"].(string)
+	if strings.TrimSpace(clientID) == "" {
+		clientID = strings.TrimSpace(os.Getenv("CONNECTOR_PLAID_CLIENT_ID"))
+	}
+	if strings.TrimSpace(secret) == "" {
+		secret = strings.TrimSpace(os.Getenv("CONNECTOR_PLAID_CLIENT_SECRET"))
+	}
 	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(secret) == "" || strings.TrimSpace(accessToken) == "" {
 		return nil, fmt.Errorf("plaid connector missing client_id/secret/access_token")
 	}

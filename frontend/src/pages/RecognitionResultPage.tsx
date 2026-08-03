@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { containers, items, rooms } from '../api/client'
 import DuplicateAlert from '../components/DuplicateAlert'
 import LocationPicker from '../components/LocationPicker'
@@ -17,6 +17,7 @@ interface Props {
 }
 
 export default function RecognitionResultPage({ previewUrl, result, onClose }: Props) {
+  const queryClient = useQueryClient()
   const [name, setName] = useState(String(result.extraction?.name ?? ''))
   const [description, setDescription] = useState(String(result.extraction?.description ?? ''))
   const [roomId, setRoomId] = useState<string>('')
@@ -75,7 +76,14 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
     mutationFn: async () => {
       await items.create(createPayload)
     },
-    onSuccess: () => onClose(),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+        queryClient.invalidateQueries({ queryKey: ['items-expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['items-documents'] }),
+      ])
+      onClose()
+    },
   })
 
   const mergeDuplicateMutation = useMutation({
@@ -85,7 +93,14 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
           await items.duplicate(created.id, targetItemId, 1)
         })
     },
-    onSuccess: () => onClose(),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['items'] }),
+        queryClient.invalidateQueries({ queryKey: ['items-expiring'] }),
+        queryClient.invalidateQueries({ queryKey: ['items-documents'] }),
+      ])
+      onClose()
+    },
   })
 
   return (

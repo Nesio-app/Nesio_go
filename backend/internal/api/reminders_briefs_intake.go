@@ -269,12 +269,7 @@ func (s *Server) handleIntakeIngest(c echo.Context) error {
 	if len(parsed.Tags) > 0 {
 		tags = parsed.Tags
 	}
-	nodeType := "memory"
-	if parsed.Intent == "task" {
-		nodeType = "task"
-	} else if parsed.Intent == "item" {
-		nodeType = "thing"
-	}
+	nodeType := lifeNodeTypeForIntent(parsed.Intent)
 
 	var nodeID uuid.UUID
 	if err := s.store.DB.QueryRow(`
@@ -299,17 +294,7 @@ func (s *Server) handleIntakeIngest(c echo.Context) error {
 		_ = s.createReminderAndCard(s.store.DB, userID, &nodeID, title, text, remindAt, strings.Contains(text, "证件"))
 	}
 
-	intentLabels := map[string]string{
-		"memory":   "记忆",
-		"task":     "任务",
-		"reminder": "提醒",
-		"query":    "检索",
-		"item":     "物品",
-	}
-	intentLabel := intentLabels[parsed.Intent]
-	if intentLabel == "" {
-		intentLabel = "记忆"
-	}
+	intentLabel := lifeNodeIntentLabel(parsed.Intent)
 	var remindAtStr *string
 	if finalRemindAt != nil {
 		v := finalRemindAt.UTC().Format(time.RFC3339)

@@ -5,6 +5,9 @@ import { ask, chat, intake } from '../api/client'
 
 interface Props {
   onBack: () => void
+  initialDraft?: string | null
+  autoSubmitInitialDraft?: boolean
+  onDraftConsumed?: () => void
 }
 
 interface Message {
@@ -43,13 +46,14 @@ interface WindowWithSpeechRecognition extends Window {
   webkitSpeechRecognition?: SpeechRecognitionConstructorLike
 }
 
-export default function ChatPage({ onBack }: Props) {
+export default function ChatPage({ onBack, initialDraft, autoSubmitInitialDraft, onDraftConsumed }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [draft, setDraft] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [useAskMode, setUseAskMode] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const autoSubmitLockRef = useRef<string>('')
 
   const historyQuery = useQuery({
     queryKey: ['chat-history'],
@@ -124,6 +128,25 @@ export default function ChatPage({ onBack }: Props) {
       recognitionRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (!initialDraft || !initialDraft.trim()) {
+      return
+    }
+
+    const normalized = initialDraft.trim()
+    setUseAskMode(true)
+    if (autoSubmitInitialDraft) {
+      if (autoSubmitLockRef.current === normalized) {
+        return
+      }
+      autoSubmitLockRef.current = normalized
+      sendMutation.mutate(normalized)
+    } else {
+      setDraft(normalized)
+    }
+    onDraftConsumed?.()
+  }, [autoSubmitInitialDraft, initialDraft, onDraftConsumed, sendMutation])
 
   const submit = () => {
     if (!draft.trim() || sendMutation.isPending) {

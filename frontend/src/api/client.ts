@@ -89,8 +89,11 @@ export const ask = {
 
 export const connectors = {
   list: () => api.get('/connectors'),
+  providers: () => api.get('/connectors/providers'),
   auth: (provider: string) =>
     api.post(`/connectors/${provider}/auth`),
+  import: (provider: string, payload: Record<string, any>, sync = true) =>
+    api.post(`/connectors/${provider}/import`, payload, { params: { sync: sync ? '1' : '0' } }),
   delete: (id: string) =>
     api.delete(`/connectors/${id}`),
   sync: (id: string) =>
@@ -172,7 +175,15 @@ export const items = {
   analyze: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return api.post('/items/analyze', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post('/vision/analyze', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+}
+
+export const vision = {
+  analyze: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/vision/analyze', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
 }
 

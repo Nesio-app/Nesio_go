@@ -14,6 +14,7 @@ const sources = [
 interface Props {
   onBack: () => void
   initialDomainHint?: string | null
+  onAsk?: (prompt: string) => void
 }
 
 interface MemoryItem {
@@ -36,11 +37,30 @@ function sanitizeBodyForDisplay(body?: string): string {
   return body
 }
 
-export default function MemoryPage({ onBack, initialDomainHint }: Props) {
+function extractKeywords(item: MemoryItem): string[] {
+  const tags = Array.isArray(item.tags) ? item.tags : []
+  const text = `${item.title} ${sanitizeBodyForDisplay(item.body)} ${item.domain ?? ''} ${tags.join(' ')}`
+  const tokens = text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2)
+  return Array.from(new Set(tokens)).slice(0, 32)
+}
+
+function buildAskPrompt(item: MemoryItem): string {
+  const body = sanitizeBodyForDisplay(item.body).trim()
+  const preview = body ? `\n补充内容：${body.slice(0, 240)}` : ''
+  return `帮我基于这条记忆做整理和下一步建议：\n标题：${item.title}${preview}`
+}
+
+export default function MemoryPage({ onBack, initialDomainHint, onAsk }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
   const [activeDomain, setActiveDomain] = useState<string>('')
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null)
+  const [readerItem, setReaderItem] = useState<MemoryItem | null>(null)
 
   useEffect(() => {
     setActiveDomain(initialDomainHint ?? '')
@@ -82,13 +102,25 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
   const relatedItems = selectedItem
     ? allItems
       .filter((item) => item.id !== selectedItem.id)
-      .filter((item) => {
-        if (selectedItem.domain && item.domain === selectedItem.domain) {
-          return true
+      .map((item) => {
+        let score = 0
+        if (selectedItem.domain && item.domain && selectedItem.domain === item.domain) {
+          score += 4
         }
         const currentTags = Array.isArray(item.tags) ? item.tags : []
-        return currentTags.some((tag) => selectedItemTags.includes(tag))
+        const overlapTags = currentTags.filter((tag) => selectedItemTags.includes(tag)).length
+        score += overlapTags * 2
+
+        const sourceKeywords = new Set(extractKeywords(selectedItem))
+        const currentKeywords = extractKeywords(item)
+        const overlapKeywords = currentKeywords.filter((keyword) => sourceKeywords.has(keyword)).length
+        score += overlapKeywords
+
+        return { item, score }
       })
+      .filter((row) => row.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((row) => row.item)
       .slice(0, 5)
     : []
 
@@ -300,7 +332,7 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
               )}
 
               <div className="space-y-3">
-                <div className="type-title text-nesio-ink">相关记忆</div>
+                <div className="type-title text-nesio-ink">相关记忆（自动关联）</div>
                 {relatedItems.length === 0 && (
                   <div className="type-body text-nesio-muted">暂无关联记忆。</div>
                 )}
@@ -319,11 +351,52 @@ export default function MemoryPage({ onBack, initialDomainHint }: Props) {
 
             <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-nesio-border px-4 py-3">
               <div className="grid grid-cols-3 gap-3">
-                <button type="button" className="ui-btn-primary rounded-full">阅读</button>
-                <button type="button" className="ui-btn-secondary rounded-full">回复</button>
+                <button
+                  type="button"
+                  onClick={() => setReaderItem(selectedItem)}
+                  className="ui-btn-primary rounded-full"
+                >
+                  阅读
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onAsk?.(buildAskPrompt(selectedItem))}
+                  className="ui-btn-secondary rounded-full"
+                >
+                  问念念
+                </button>
                 <button type="button" className="ui-btn-secondary rounded-full">编辑</button>
               </div>
             </div>
+          </section>
+        </>
+      )}
+
+      {readerItem && (
+        <>
+          <button
+            type="button"
+            aria-label="关闭阅读器"
+            onClick={() => setReaderItem(null)}
+            className="fixed inset-0 z-[60] bg-black/35"
+          />
+          <section className="fixed inset-0 z-[70] bg-white overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-nesio-border px-4 py-3 flex items-center justify-between">
+              <div className="type-title text-nesio-ink">内置阅读器</div>
+              <button
+                type="button"
+                onClick={() => setReaderItem(null)}
+                className="ui-btn-secondary rounded-full px-4"
+              >
+                关闭
+              </button>
+            </div>
+            <article className="px-5 py-6 space-y-5">
+              <h3 className="text-3xl font-semibold text-nesio-ink break-words">{readerItem.title}</h3>
+              <div className="type-body text-nesio-ink whitespace-pre-wrap leading-8 break-words">
+                {sanitizeBodyForDisplay(readerItem.body) || '这条记忆没有正文内容。'}
+              </div>
+            </article>
           </section>
         </>
       )}

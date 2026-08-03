@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { items } from '../api/client'
+import { vision, items } from '../api/client'
 import CameraSheet from '../components/CameraSheet'
 import CaptureBar from '../components/CaptureBar'
 
@@ -19,11 +19,20 @@ interface AnalyzeResult {
 
 interface Props {
   onClose: () => void
-  captureRequestToken?: number
+  initialFile?: File | null
   onAnalyzed: (payload: { file: File; previewUrl: string; result: AnalyzeResult }) => void
 }
 
-export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }: Props) {
+interface ImageMetrics {
+  offsetX: number
+  offsetY: number
+  width: number
+  height: number
+  scaleX: number
+  scaleY: number
+}
+
+export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -35,7 +44,7 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
 
   const analyzeMutation = useMutation({
     mutationFn: async (source: File) => {
-      const response = await items.analyze(source)
+      const response = await vision.analyze(source)
       return response.data as AnalyzeResult
     },
     onSuccess: (result) => {
@@ -48,15 +57,15 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
 
   const filename = useMemo(() => file?.name ?? '', [file])
 
+  useEffect(() => {
+    if (initialFile) {
+      onFileSelected(initialFile)
+    }
+  }, [initialFile])
+
   const pickPhoto = () => {
     fileInputRef.current?.click()
   }
-
-  useEffect(() => {
-    if (!file && captureRequestToken) {
-      fileInputRef.current?.click()
-    }
-  }, [captureRequestToken, file])
 
   const resetFile = () => {
     setFile(null)
@@ -93,6 +102,45 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
     const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
     const y = Math.max(0, Math.min(rect.height, clientY - rect.top))
     return { x, y }
+  }
+
+  const getImageMetrics = (): ImageMetrics | null => {
+    const image = imageRef.current
+    if (!image) {
+      return null
+    }
+
+    const containerWidth = image.clientWidth
+    const containerHeight = image.clientHeight
+    const naturalWidth = image.naturalWidth
+    const naturalHeight = image.naturalHeight
+    if (!containerWidth || !containerHeight || !naturalWidth || !naturalHeight) {
+      return null
+    }
+
+    const containerRatio = containerWidth / containerHeight
+    const naturalRatio = naturalWidth / naturalHeight
+    let width = containerWidth
+    let height = containerHeight
+    let offsetX = 0
+    let offsetY = 0
+
+    if (naturalRatio > containerRatio) {
+      height = Math.round(containerWidth / naturalRatio)
+      offsetY = Math.round((containerHeight - height) / 2)
+    } else {
+      width = Math.round(containerHeight * naturalRatio)
+      offsetX = Math.round((containerWidth - width) / 2)
+    }
+
+    return {
+      offsetX,
+      offsetY,
+      width,
+      height,
+      scaleX: naturalWidth / width,
+      scaleY: naturalHeight / height,
+    }
   }
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -135,23 +183,25 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
 
   const createCroppedFile = async (source: File, crop: CropRect) => {
     const image = imageRef.current
-    if (!image) {
-      return source
-    }
-    const displayWidth = image.clientWidth
-    const displayHeight = image.clientHeight
-    const naturalWidth = image.naturalWidth
-    const naturalHeight = image.naturalHeight
-    if (!displayWidth || !displayHeight || !naturalWidth || !naturalHeight) {
+    const metrics = getImageMetrics()
+    if (!image || !metrics) {
       return source
     }
 
-    const scaleX = naturalWidth / displayWidth
-    const scaleY = naturalHeight / displayHeight
-    const sx = Math.max(0, Math.floor(crop.x * scaleX))
-    const sy = Math.max(0, Math.floor(crop.y * scaleY))
-    const sw = Math.max(1, Math.floor(crop.width * scaleX))
-    const sh = Math.max(1, Math.floor(crop.height * scaleY))
+    const left = Math.max(crop.x, metrics.offsetX)
+    const top = Math.max(crop.y, metrics.offsetY)
+    const right = Math.min(crop.x + crop.width, metrics.offsetX + metrics.width)
+    const bottom = Math.min(crop.y + crop.height, metrics.offsetY + metrics.height)
+    const clippedWidth = right - left
+    const clippedHeight = bottom - top
+    if (clippedWidth < 1 || clippedHeight < 1) {
+      return source
+    }
+
+    const sx = Math.max(0, Math.floor((left - metrics.offsetX) * metrics.scaleX))
+    const sy = Math.max(0, Math.floor((top - metrics.offsetY) * metrics.scaleY))
+    const sw = Math.max(1, Math.floor(clippedWidth * metrics.scaleX))
+    const sh = Math.max(1, Math.floor(clippedHeight * metrics.scaleY))
 
     const canvas = document.createElement('canvas')
     canvas.width = sw
@@ -215,11 +265,11 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
         <>
           <div className="px-5 pt-2">
             <div className="mx-auto rounded-3xl bg-gradient-to-b from-white/20 to-white/5 px-6 py-6 text-center type-h2 font-bold leading-tight">
-              圈住区域让 AI
-              <br />
-              识别;或直接存,
-              <br />
-              自己填名字
+                圈住物品区域让 AI
+                <br />
+                视觉识别
+                <br />
+                或直接保存后补全
             </div>
           </div>
 

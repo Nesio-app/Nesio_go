@@ -60,6 +60,7 @@ type ListResponse struct {
 type DuplicateRow struct {
 	ID            uuid.UUID `db:"id"`
 	Name          string    `db:"name"`
+	VisualHash    string    `db:"visual_hash"`
 	RoomName      *string   `db:"room_name"`
 	ContainerName *string   `db:"container_name"`
 }

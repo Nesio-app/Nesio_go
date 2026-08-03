@@ -12,6 +12,11 @@ from app.prompts.item_extraction import ITEM_EXTRACTION_PROMPT
 from app.prompts.document_extraction import DOCUMENT_EXTRACTION_PROMPT
 
 try:
+    import imagehash
+except Exception:
+    imagehash = None
+
+try:
     import pytesseract
 except Exception:
     pytesseract = None
@@ -33,7 +38,7 @@ async def analyze_item(
     content = await file.read()
 
     extraction = await extract_item(content=content, filename=file.filename or "", locale=locale)
-    visual_hash = hashlib.sha256(content).hexdigest()[:16]
+    visual_hash = compute_visual_hash(content)
 
     return {
         "extraction": extraction,
@@ -44,6 +49,16 @@ async def analyze_item(
         "image_url": "",
         "user_id": user_id,
     }
+
+
+def compute_visual_hash(content: bytes) -> str:
+    if Image is None or imagehash is None:
+        return hashlib.sha256(content).hexdigest()[:16]
+    try:
+        image = Image.open(BytesIO(content)).convert("RGB")
+        return str(imagehash.phash(image))
+    except Exception:
+        return hashlib.sha256(content).hexdigest()[:16]
 
 
 @router.post("/vision/analyze")

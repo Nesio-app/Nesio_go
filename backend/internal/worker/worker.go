@@ -12,9 +12,16 @@ import (
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+	"github.com/lib/pq"
 )
 
-const taskDailyMaintenance = "maintenance:daily"
+const (
+	taskDailyMaintenance = "maintenance:daily"
+	taskDailyBrief      = "maintenance:daily_brief"
+	taskSyncConnectors  = "maintenance:sync_connectors"
+	taskCheckReminders  = "maintenance:check_reminders"
+	taskArchiveOld      = "maintenance:archive_old"
+)
 
 type maintenancePayload struct{}
 
@@ -58,10 +65,34 @@ func (w *Worker) Start() {
 	mux.HandleFunc(taskDailyMaintenance, func(ctx context.Context, task *asynq.Task) error {
 		return w.runDailyMaintenance(ctx, task)
 	})
+	mux.HandleFunc(taskDailyBrief, func(ctx context.Context, task *asynq.Task) error {
+		return w.runDailyBriefJob(ctx)
+	})
+	mux.HandleFunc(taskSyncConnectors, func(ctx context.Context, task *asynq.Task) error {
+		return w.runConnectorSyncJob(ctx)
+	})
+	mux.HandleFunc(taskCheckReminders, func(ctx context.Context, task *asynq.Task) error {
+		return w.runCheckRemindersJob(ctx)
+	})
+	mux.HandleFunc(taskArchiveOld, func(ctx context.Context, task *asynq.Task) error {
+		return w.runArchiveOldJob(ctx)
+	})
 
 	payload, _ := json.Marshal(maintenancePayload{})
 	if _, err := w.sched.Register("@every 1h", asynq.NewTask(taskDailyMaintenance, payload)); err != nil {
 		log.Printf("register scheduler error: %v", err)
+	}
+	if _, err := w.sched.Register("0 8 * * *", asynq.NewTask(taskDailyBrief, payload)); err != nil {
+		log.Printf("register daily brief scheduler error: %v", err)
+	}
+	if _, err := w.sched.Register("0 * * * *", asynq.NewTask(taskSyncConnectors, payload)); err != nil {
+		log.Printf("register connector sync scheduler error: %v", err)
+	}
+	if _, err := w.sched.Register("*/1 * * * *", asynq.NewTask(taskCheckReminders, payload)); err != nil {
+		log.Printf("register reminder check scheduler error: %v", err)
+	}
+	if _, err := w.sched.Register("0 4 * * *", asynq.NewTask(taskArchiveOld, payload)); err != nil {
+		log.Printf("register archive scheduler error: %v", err)
 	}
 
 	go func() {
@@ -72,6 +103,12 @@ func (w *Worker) Start() {
 
 	if _, err := w.client.EnqueueContext(w.ctx, asynq.NewTask(taskDailyMaintenance, payload)); err != nil {
 		log.Printf("enqueue initial maintenance error: %v", err)
+	}
+	if _, err := w.client.EnqueueContext(w.ctx, asynq.NewTask(taskCheckReminders, payload)); err != nil {
+		log.Printf("enqueue initial reminder check error: %v", err)
+	}
+	if _, err := w.client.EnqueueContext(w.ctx, asynq.NewTask(taskSyncConnectors, payload)); err != nil {
+		log.Printf("enqueue initial connector sync error: %v", err)
 	}
 
 	if err := w.server.Run(mux); err != nil {
@@ -94,9 +131,9 @@ func (w *Worker) Stop() {
 	}
 }
 
-func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) error {
+func (w *Worker) runArchiveOldJob(ctx context.Context) error {
 	// Move 7-day old active tasks without due_date to 'later'
-	_, err := w.store.DB.Exec(`
+	_, err := w.store.DB.ExecContext(ctx, `
 		UPDATE life_nodes 
 		SET status = 'later', updated_at = now()
 		WHERE status = 'active' 
@@ -109,7 +146,7 @@ func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) erro
 	}
 
 	// Archive 30-day old 'later' tasks
-	_, err = w.store.DB.Exec(`
+	_, err = w.store.DB.ExecContext(ctx, `
 		UPDATE life_nodes 
 		SET status = 'archived', updated_at = now()
 		WHERE status = 'later' 
@@ -120,6 +157,10 @@ func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) erro
 		return err
 	}
 
+	return nil
+}
+
+func (w *Worker) runConnectorSyncJob(ctx context.Context) error {
 	if err := connector.SyncAllConnectorsWithStore(ctx, w.store); err != nil {
 		log.Printf("connector sync error: %v", err)
 		return err
@@ -133,6 +174,60 @@ func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) erro
 		log.Printf("document reminder job error: %v", err)
 	}
 
+	return nil
+}
+
+func (w *Worker) runCheckRemindersJob(ctx context.Context) error {
+	type reminderRow struct {
+		ID       uuid.UUID `db:"id"`
+		UserID   uuid.UUID `db:"user_id"`
+		NodeID   *uuid.UUID `db:"node_id"`
+		Title    string    `db:"title"`
+		RemindAt time.Time `db:"remind_at"`
+	}
+
+	rows := make([]reminderRow, 0)
+	err := w.store.DB.SelectContext(ctx, &rows, `
+		SELECT id, user_id, node_id, title, remind_at
+		FROM reminders
+		WHERE is_done = false
+		  AND remind_at <= NOW()
+		ORDER BY remind_at ASC
+		LIMIT 200
+	`)
+	if err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		fingerprint := "reminder-due:" + row.ID.String()
+		localDay := row.RemindAt.In(time.UTC).Format("2006-01-02")
+		body := fmt.Sprintf("提醒时间：%s", row.RemindAt.UTC().Format(time.RFC3339))
+		_, _ = w.store.DB.ExecContext(ctx, `
+			INSERT INTO today_cards (user_id, local_day, slot, node_id, title, body, severity, fingerprints)
+			SELECT $1, $2, 'guidance', $3, $4, $5, 2, $6
+			WHERE NOT EXISTS (
+				SELECT 1 FROM today_cards
+				WHERE user_id = $1
+				  AND local_day = $2
+				  AND fingerprints @> $6
+			)
+		`, row.UserID, localDay, row.NodeID, row.Title, body, pq.Array([]string{fingerprint}))
+	}
+
+	return nil
+}
+
+func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) error {
+	if err := w.runArchiveOldJob(ctx); err != nil {
+		return err
+	}
+	if err := w.runConnectorSyncJob(ctx); err != nil {
+		return err
+	}
+	if err := w.runCheckRemindersJob(ctx); err != nil {
+		log.Printf("reminder check job error: %v", err)
+	}
 	if err := w.runDailyBriefJob(ctx); err != nil {
 		log.Printf("daily brief generation error: %v", err)
 	}

@@ -22,7 +22,7 @@ export default function CaptureBar({ onDirectSave, onAnalyze, onRetake, analyzin
           disabled={disabled || analyzing}
           className="ui-btn border border-white/45 bg-white/20 text-white"
         >
-          {analyzing ? '识别中...' : 'AI识别全图'}
+          {analyzing ? '识别中...' : 'AI识别选区'}
         </button>
       </div>
       <button onClick={onRetake} className="ui-btn mx-auto border border-white/35 bg-white/15 px-8 text-white">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import TabBar from './components/TabBar'
 import TodayPage from './pages/TodayPage'
 import ChatPage from './pages/ChatPage'
@@ -20,9 +20,12 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('token')))
   const [tab, setTab] = useState<Tab>('today')
   const [prevTab, setPrevTab] = useState<Tab>('today')
-  const [captureRequestToken, setCaptureRequestToken] = useState(0)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [memoryDomainHint, setMemoryDomainHint] = useState<string | null>(null)
+  const [chatDraft, setChatDraft] = useState<string | null>(null)
+  const [chatAutoSubmit, setChatAutoSubmit] = useState(false)
   const [capturePayload, setCapturePayload] = useState<{
     file: File
     previewUrl: string
@@ -57,6 +60,11 @@ export default function App() {
     setTab(prevTab)
   }
 
+  const openCameraPicker = () => {
+    setPrevTab(tab)
+    cameraInputRef.current?.click()
+  }
+
   const tabBarActiveTab = tab === 'today' ? 'today' : (tab === 'domains' || tab === 'items' || tab === 'item-detail' ? 'domains' : 'today')
 
   // 哪些页面显示 TabBar
@@ -74,6 +82,22 @@ export default function App() {
 
   return (
     <div className="app-frame bg-nesio-bg flex flex-col relative">
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const nextFile = event.currentTarget.files?.[0] ?? null
+          event.currentTarget.value = ''
+          if (!nextFile) {
+            return
+          }
+          setCaptureFile(nextFile)
+          setTab('capture')
+        }}
+      />
       <main key={tab} className="page-shell app-content-safe flex-1 overflow-y-auto scrollbar-hide">
         {tab === 'today' && (
           <TodayPage
@@ -82,11 +106,35 @@ export default function App() {
               navigate('memory')
             }}
             onSettings={() => navigate('settings')}
-            onChat={() => navigate('chat')}
+            onChat={(options) => {
+              setChatDraft(options?.draft?.trim() ? options.draft : null)
+              setChatAutoSubmit(Boolean(options?.autoSubmit && options?.draft?.trim()))
+              navigate('chat')
+            }}
           />
         )}
-        {tab === 'chat' && <ChatPage onBack={goBack} />}
-        {tab === 'memory' && <MemoryPage onBack={goBack} initialDomainHint={memoryDomainHint} />}
+        {tab === 'chat' && (
+          <ChatPage
+            onBack={goBack}
+            initialDraft={chatDraft}
+            autoSubmitInitialDraft={chatAutoSubmit}
+            onDraftConsumed={() => {
+              setChatDraft(null)
+              setChatAutoSubmit(false)
+            }}
+          />
+        )}
+        {tab === 'memory' && (
+          <MemoryPage
+            onBack={goBack}
+            initialDomainHint={memoryDomainHint}
+            onAsk={(prompt) => {
+              setChatDraft(prompt)
+              setChatAutoSubmit(true)
+              navigate('chat')
+            }}
+          />
+        )}
         {tab === 'settings' && (
           <SettingsPage
             onBack={goBack}
@@ -129,9 +177,13 @@ export default function App() {
         )}
         {tab === 'capture' && (
           <CapturePage
-            onClose={() => setTab(prevTab)}
-            captureRequestToken={captureRequestToken}
+            onClose={() => {
+              setCaptureFile(null)
+              setTab(prevTab)
+            }}
+            initialFile={captureFile}
             onAnalyzed={(payload) => {
+              setCaptureFile(null)
               setCapturePayload(payload)
               setTab('recognition')
             }}
@@ -151,13 +203,11 @@ export default function App() {
       {showTabBar && (
         <TabBar
           active={tabBarActiveTab}
-          onCameraPress={() => {
-            setPrevTab(tab)
-            setCaptureRequestToken((current) => current + 1)
-            setTab('capture')
-          }}
+          onCameraPress={openCameraPicker}
           onAskPress={() => {
             setPrevTab(tab)
+            setChatDraft(null)
+            setChatAutoSubmit(false)
             setTab('chat')
           }}
           onChange={(t) => {

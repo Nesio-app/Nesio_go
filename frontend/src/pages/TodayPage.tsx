@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconCloud, IconMic, IconPlus, IconX
 } from '../icons'
-import { ask, dailyBriefs, extraction, intake, mention, reminders, search, today } from '../api/client'
+import { dailyBriefs, extraction, intake, mention, reminders, search, today } from '../api/client'
 
 interface TodayCard {
   id: string
@@ -21,7 +21,7 @@ interface TodayResponse {
 interface Props {
   onMemory?: () => void
   onSettings?: () => void
-  onChat?: () => void
+  onChat?: (options?: { draft?: string; autoSubmit?: boolean }) => void
 }
 
 interface IntakeIngestResponse {
@@ -202,22 +202,6 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     },
   })
 
-  const askMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const response = await ask.query(message)
-      return response.data as { answer: string }
-    },
-    onSuccess: (data) => {
-      setSaveMessage(data.answer || '已发送到问一问。')
-      setSaveTone('success')
-      onChat?.()
-    },
-    onError: () => {
-      setSaveMessage('发送失败，请稍后重试。')
-      setSaveTone('error')
-    },
-  })
-
   const uploadMutation = useMutation({
     mutationFn: async ({ files, note }: { files: File[]; note?: string }) => {
       await extraction.upload(files, note)
@@ -309,10 +293,10 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
 
   const handleAsk = () => {
     const title = taskTitle.trim()
-    if (!title || askMutation.isPending) {
+    if (!title) {
       return
     }
-    askMutation.mutate(title)
+    onChat?.({ draft: title, autoSubmit: true })
   }
 
   const openUpload = () => {

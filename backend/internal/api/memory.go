@@ -24,6 +24,7 @@ func (s *Server) handleListMemories(c echo.Context) error {
 		SELECT id, user_id, type, domain, title, body, status, due_date, tags, attributes, created_at, updated_at
 		FROM life_nodes
 		WHERE user_id = $1
+		AND (type = 'memory' OR type = 'mind')
 		AND ($2 = '' OR domain = $2)
 		ORDER BY created_at DESC
 	`, userID, domain)
@@ -49,7 +50,7 @@ func (s *Server) createMemoryForUser(c echo.Context, userID uuid.UUID, req Creat
 	}
 	node := models.LifeNode{
 		UserID:     userID,
-		Type:       "memory",
+		Type:       lifeNodeTypeMind,
 		Title:      req.Title,
 		Status:     "active",
 		Tags:       tags,
@@ -61,7 +62,7 @@ func (s *Server) createMemoryForUser(c echo.Context, userID uuid.UUID, req Creat
 
 	if req.Body != "" {
 		summary := req.Body
-		if aiResp, err := callAIService(req.Body, "standard", "memory"); err == nil && aiResp.Content != "" {
+		if aiResp, err := callAIService(req.Body, "standard", lifeNodeTypeMind); err == nil && aiResp.Content != "" {
 			summary = aiResp.Content
 		}
 		node.Body = &summary

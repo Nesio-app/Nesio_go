@@ -3,6 +3,7 @@ package items
 import (
 	"strings"
 
+	"github.com/Nesio-app/Nesio_go/internal/vision"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
@@ -21,12 +22,18 @@ func (s *Service) FindDuplicates(userID uuid.UUID, visualHash string, extraction
 	visualRows, err := s.repo.FindVisualDuplicates(userID, visualHash, 3)
 	if err == nil {
 		for _, row := range visualRows {
+			similarity := 1.0
+			if row.VisualHash != "" && visualHash != "" {
+				distance := vision.HammingDistanceHex(row.VisualHash, visualHash)
+				similarity = 1.0 - float64(distance)/64.0
+			}
 			duplicates = append(duplicates, map[string]any{
 				"id":             row.ID,
 				"name":           row.Name,
 				"room_name":      row.RoomName,
 				"container_name": row.ContainerName,
 				"match_type":     "visual",
+				"similarity":     similarity,
 			})
 		}
 	}

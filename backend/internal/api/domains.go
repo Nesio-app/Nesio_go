@@ -32,7 +32,7 @@ func (s *Server) handleDomainsOverview(c echo.Context) error {
 		`, userID, label)
 		_ = s.store.DB.Get(&overview.MemoryCount, `
 			SELECT COUNT(*) FROM life_nodes
-			WHERE user_id = $1 AND type = 'memory' AND domain = $2
+			WHERE user_id = $1 AND `+lifeNodeTypeMatchesMemory()+` AND domain = $2
 		`, userID, label)
 		_ = s.store.DB.Get(&overview.UrgentCount, `
 			SELECT COUNT(*) FROM today_cards

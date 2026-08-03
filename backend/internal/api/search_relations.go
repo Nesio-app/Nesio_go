@@ -118,18 +118,10 @@ func (s *Server) handleSearch(c echo.Context) error {
 		}
 	}
 
-	rows := make([]searchResult, 0)
-	err := s.store.DB.Select(&rows, `
-		SELECT id, type, title, body, (attributes->>'image_url') AS image_url, to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at
-		FROM life_nodes
-		WHERE user_id = $1
-		  AND (title ILIKE '%' || $2 || '%' OR COALESCE(body, '') ILIKE '%' || $2 || '%')
-		ORDER BY updated_at DESC
-		LIMIT $3
-	`, userID, query, limit)
+	merged, err := s.parallelSearchRecall(userID, query, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, rows)
+	return c.JSON(http.StatusOK, merged)
 }

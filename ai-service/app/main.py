@@ -16,8 +16,11 @@ except Exception:
 
 try:
     from PIL import Image
+    from PIL import ImageFilter, ImageOps
 except Exception:
     Image = None
+    ImageFilter = None
+    ImageOps = None
 
 app = FastAPI(title="Nesio AI Service")
 
@@ -270,11 +273,12 @@ def extract_item_offline(content: bytes, filename: str, locale: str = "zh") -> d
 
     text_lines: list[str] = []
     if pytesseract is not None:
-        try:
-            ocr_text = pytesseract.image_to_string(image, lang="chi_sim+eng")
-            text_lines = [line.strip() for line in ocr_text.splitlines() if line and line.strip()]
-        except Exception:
-            text_lines = []
+        text_lines = run_ocr_pass(image)
+        if not text_lines and ImageOps is not None and ImageFilter is not None:
+            enhanced = ImageOps.autocontrast(image.convert("L")).resize(
+                (max(1, image.width * 2), max(1, image.height * 2))
+            ).filter(ImageFilter.SHARPEN)
+            text_lines = run_ocr_pass(enhanced)
 
     normalized_text = " ".join(text_lines)
     normalized_lower = normalized_text.lower()
@@ -350,6 +354,16 @@ def extract_item_offline(content: bytes, filename: str, locale: str = "zh") -> d
         "description": description,
         "locale": locale,
     }
+
+
+def run_ocr_pass(image) -> list[str]:
+    if pytesseract is None:
+        return []
+    try:
+        ocr_text = pytesseract.image_to_string(image, lang="chi_sim+eng")
+        return [line.strip() for line in ocr_text.splitlines() if line and line.strip()]
+    except Exception:
+        return []
 
 
 def infer_name_from_text(lines: list[str]) -> str:

@@ -24,7 +24,7 @@ export default function TabBar({ active, onChange, onCameraPress, onAskPress }: 
       }
       longPressFiredRef.current = true
       onAskPress()
-    }, 650)
+    }, 450)
   }
 
   const onCenterUp = () => {
