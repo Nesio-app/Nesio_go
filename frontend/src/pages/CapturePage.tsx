@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { items } from '../api/client'
+import CameraSheet from '../components/CameraSheet'
+import CaptureBar from '../components/CaptureBar'
 
 interface AnalyzeResult {
   extraction: Record<string, any>
@@ -89,11 +91,7 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
       </div>
 
       {!file && (
-        <div className="flex-1 flex items-center justify-center px-6">
-          <button onClick={pickPhoto} className="ui-btn w-full max-w-xs border border-white/30 bg-white/10 text-white">
-            拍照或上传
-          </button>
-        </div>
+        <CameraSheet onPickPhoto={pickPhoto} />
       )}
 
       {file && (
@@ -113,26 +111,13 @@ export default function CapturePage({ onClose, captureRequestToken, onAnalyzed }
             <div className="pointer-events-none absolute inset-8 rounded-3xl border-4 border-nesio-accent/80" />
           </div>
 
-          <div className="px-5 pb-7 pt-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={directSave}
-                className="ui-btn border border-white/45 bg-white/20 text-white"
-              >
-                直接存
-              </button>
-              <button
-                onClick={() => file && analyzeMutation.mutate(file)}
-                disabled={analyzeMutation.isPending}
-                className="ui-btn border border-white/45 bg-white/20 text-white"
-              >
-                {analyzeMutation.isPending ? '识别中...' : 'AI识别全图'}
-              </button>
-            </div>
-            <button onClick={resetFile} className="ui-btn mx-auto border border-white/35 bg-white/15 px-8 text-white">
-              ↩ 重拍
-            </button>
-          </div>
+          <CaptureBar
+            onDirectSave={directSave}
+            onAnalyze={() => file && analyzeMutation.mutate(file)}
+            onRetake={resetFile}
+            analyzing={analyzeMutation.isPending}
+            disabled={!file}
+          />
         </>
       )}
     </div>
