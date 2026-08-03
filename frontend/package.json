@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "lint:ui": "node ./scripts/ui-style-guard.mjs",
+    "check:ui": "npm run lint:ui && npm run build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "cap:sync": "npx cap sync",

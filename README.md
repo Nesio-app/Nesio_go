@@ -11,6 +11,12 @@ Nesio is a personal operating system prototype with:
 ### 1. Start the full local stack
 
 ```bash
+export GEMINI_API_KEY="your-key"
+export GEMINI_MODEL=gemini-2.5-flash
+# Optional overrides:
+# export GEMINI_MODEL_QUICK=gemini-2.5-flash-lite
+# export GEMINI_MODEL_STANDARD=gemini-2.5-flash
+# export GEMINI_MODEL_DEEP=gemini-2.5-flash
 docker compose up -d --build postgres redis qdrant ai-service api worker
 docker compose ps
 ```

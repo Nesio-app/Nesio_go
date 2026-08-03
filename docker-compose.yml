@@ -53,6 +53,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      ai-service:
+        condition: service_started
     command: ["./api"]
 
   ai-service:
@@ -62,9 +64,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - GEMINI_MODEL_QUICK=${GEMINI_MODEL_QUICK:-gemini-2.5-flash-lite}
+      - GEMINI_MODEL_STANDARD=${GEMINI_MODEL_STANDARD:-gemini-2.5-flash}
+      - GEMINI_MODEL_DEEP=${GEMINI_MODEL_DEEP:-gemini-2.5-flash}
+      - GEMINI_MODEL_CARD=${GEMINI_MODEL_CARD:-gemini-2.5-flash}
+      - GEMINI_MODEL_INTAKE=${GEMINI_MODEL_INTAKE:-gemini-2.5-flash-lite}
+      - GEMINI_MODEL_VISION=${GEMINI_MODEL_VISION:-gemini-2.5-flash}
       - QDRANT_URL=http://qdrant:6333
       - EMBEDDING_MODEL=BAAI/bge-m3
     depends_on:
@@ -83,6 +90,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - ai-service
     command: ["./worker"]
 
 volumes:

@@ -49,6 +49,10 @@ export const auth = {
     api.post('/auth/login', { email, password }),
   register: (email: string, password: string) =>
     api.post('/auth/register', { email, password }),
+  forgotPassword: (email: string) =>
+    api.post<{ reset_token: string; expires_at: string }>('/auth/forgot-password', { email }),
+  resetPassword: (email: string, token: string, password: string) =>
+    api.post('/auth/reset-password', { email, token, password }),
 }
 
 export const today = {
@@ -111,6 +115,97 @@ export const domains = {
   updateNode: (domain: string, id: string, data: { title?: string; body?: string; status?: string; due_date?: string | null }) =>
     api.patch(`/domains/${encodeURIComponent(domain)}/nodes/${id}`, data),
   deleteNode: (domain: string, id: string) => api.delete(`/domains/${encodeURIComponent(domain)}/nodes/${id}`),
+}
+
+export const rooms = {
+  list: () => api.get('/rooms'),
+  create: (data: { name: string; icon?: string; sort_order?: number }) => api.post('/rooms', data),
+}
+
+export const containers = {
+  list: (roomId?: string) => api.get('/containers', { params: { room: roomId } }),
+  create: (data: { name: string; icon?: string; room_id?: string | null; sort_order?: number }) => api.post('/containers', data),
+}
+
+export const items = {
+  list: (params?: { room?: string; container?: string; q?: string }) => api.get('/items', { params }),
+  get: (id: string) => api.get(`/items/${id}`),
+  create: (data: {
+    name: string
+    body?: string
+    room_id?: string | null
+    container_id?: string | null
+    location_note?: string
+    expiry_date?: string
+    is_document?: boolean
+    document_type?: string
+    document_number?: string
+    quantity?: number
+    unit?: string
+    primary_image_url?: string
+    visual_hash?: string
+    reminder_label?: string
+    tags?: string[]
+  }) => api.post('/items/create', data),
+  update: (id: string, data: any) => api.patch(`/items/${id}`, data),
+  remove: (id: string) => api.delete(`/items/${id}`),
+  whereIs: (q: string) => api.get('/items/where-is', { params: { q } }),
+  whereIsPhoto: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/items/where-is-photo', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  expiring: () => api.get('/items/expiring'),
+  documents: () => api.get('/items/documents'),
+  analyze: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/items/analyze', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+}
+
+export const reminders = {
+  list: () => api.get('/reminders'),
+  create: (data: { title: string; remind_at?: string; source?: string; body?: string; important?: boolean; node_id?: string }) =>
+    api.post('/reminders', data),
+  done: (id: string) => api.post(`/reminders/${id}/done`),
+}
+
+export const medications = {
+  list: () => api.get('/medications'),
+  create: (data: { name: string; dosage?: string; frequency?: string; start_date?: string; end_date?: string; image_url?: string }) =>
+    api.post('/medications', data),
+}
+
+export const dailyBriefs = {
+  today: () => api.get('/daily-briefs/today'),
+  generate: () => api.post('/daily-briefs/generate'),
+}
+
+export const intake = {
+  ingest: (text: string) => api.post<{
+    node_id: string
+    reminder_created: boolean
+    intent: string
+    intent_label: string
+    confidence: number
+    remind_at?: string | null
+  }>('/intake/ingest', { text }),
+  upload: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/intake/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+}
+
+export const search = {
+  query: (q: string) => api.get('/search', { params: { q } }),
+}
+
+export const relations = {
+  list: (nodeId?: string) => api.get('/relations', { params: { node_id: nodeId } }),
+  create: (data: { from_node: string; to_node: string; relation: string }) => api.post('/relations', data),
+  remove: (id: string) => api.delete(`/relations/${id}`),
 }
 
 export const user = {

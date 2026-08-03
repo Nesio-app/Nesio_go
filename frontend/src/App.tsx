@@ -5,9 +5,12 @@ import ChatPage from './pages/ChatPage'
 import MemoryPage from './pages/MemoryPage'
 import SettingsPage from './pages/SettingsPage'
 import DomainsPage from './pages/DomainsPage'
+import ItemsPage from './pages/ItemsPage'
 import AuthPage from './pages/AuthPage'
+import CapturePage from './pages/CapturePage'
+import RecognitionResultPage from './pages/RecognitionResultPage'
 
-type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains'
+type Tab = 'today' | 'chat' | 'memory' | 'settings' | 'domains' | 'capture' | 'recognition' | 'items'
 type ThemeMode = 'light' | 'dark'
 type Palette = 'dawn' | 'ocean' | 'forest'
 
@@ -15,6 +18,16 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem('token')))
   const [tab, setTab] = useState<Tab>('today')
   const [prevTab, setPrevTab] = useState<Tab>('today')
+  const [captureRequestToken, setCaptureRequestToken] = useState(0)
+  const [capturePayload, setCapturePayload] = useState<{
+    file: File
+    previewUrl: string
+    result: {
+      extraction: Record<string, any>
+      duplicates: Array<Record<string, any>>
+      visual_hash: string
+    }
+  } | null>(null)
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => (localStorage.getItem('nesio-theme-mode') as ThemeMode) || 'light')
   const [palette, setPalette] = useState<Palette>(() => (localStorage.getItem('nesio-palette') as Palette) || 'dawn')
 
@@ -41,15 +54,21 @@ export default function App() {
   }
 
   // 哪些页面显示 TabBar
-  const showTabBar = ['today', 'memory', 'domains'].includes(tab)
+  const showTabBar = ['today', 'memory', 'domains', 'items'].includes(tab)
 
   if (!isAuthenticated) {
-    return <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />
+    return (
+      <div className="app-frame bg-nesio-bg flex flex-col relative">
+        <main className="page-shell app-content-safe flex-1 overflow-y-auto scrollbar-hide">
+          <AuthPage onAuthenticated={() => setIsAuthenticated(true)} />
+        </main>
+      </div>
+    )
   }
 
   return (
-    <div className="h-screen w-full max-w-md mx-auto bg-nesio-bg flex flex-col overflow-hidden relative">
-      <main key={tab} className="page-shell flex-1 overflow-y-auto scrollbar-hide">
+    <div className="app-frame bg-nesio-bg flex flex-col relative">
+      <main key={tab} className="page-shell app-content-safe flex-1 overflow-y-auto scrollbar-hide">
         {tab === 'today' && (
           <TodayPage
             onMemory={() => navigate('memory')}
@@ -68,14 +87,43 @@ export default function App() {
             onPaletteChange={setPalette}
           />
         )}
-        {tab === 'domains' && <DomainsPage />}
+        {tab === 'domains' && <DomainsPage onToday={() => navigate('today')} />}
+        {tab === 'items' && <ItemsPage />}
+        {tab === 'capture' && (
+          <CapturePage
+            onClose={() => setTab(prevTab)}
+            captureRequestToken={captureRequestToken}
+            onAnalyzed={(payload) => {
+              setCapturePayload(payload)
+              setTab('recognition')
+            }}
+          />
+        )}
+        {tab === 'recognition' && capturePayload && (
+          <RecognitionResultPage
+            previewUrl={capturePayload.previewUrl}
+            result={capturePayload.result}
+            onClose={() => {
+              setCapturePayload(null)
+              setTab('items')
+            }}
+          />
+        )}
       </main>
       {showTabBar && (
         <TabBar
           active={tab}
+          onCameraPress={() => {
+            setPrevTab(tab)
+            setCaptureRequestToken((current) => current + 1)
+            setTab('capture')
+          }}
+          onAskPress={() => {
+            setPrevTab(tab)
+            setTab('chat')
+          }}
           onChange={(t) => {
-            if (t === 'chat') navigate('chat')
-            else navigate(t as Tab)
+            navigate(t as Tab)
           }}
         />
       )}

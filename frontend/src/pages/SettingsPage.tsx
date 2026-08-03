@@ -6,11 +6,11 @@ import {
 import { connectors as connectorsApi } from '../api/client'
 
 const menuItems = [
-  { icon: IconSun, label: '外观与语言', color: 'bg-blue-50 text-blue-500' },
-  { icon: IconShield, label: '数据与隐私', color: 'bg-red-50 text-red-400' },
-  { icon: IconGift, label: '会员 · Pro', color: 'bg-amber-50 text-amber-500' },
-  { icon: IconHelp, label: '帮助与反馈', color: 'bg-indigo-50 text-indigo-500' },
-  { icon: IconBulb, label: 'Lab', color: 'bg-purple-50 text-purple-500' },
+  { icon: IconSun, label: '外观与语言' },
+  { icon: IconShield, label: '数据与隐私' },
+  { icon: IconGift, label: '会员 · Pro' },
+  { icon: IconHelp, label: '帮助与反馈' },
+  { icon: IconBulb, label: 'Lab' },
 ]
 
 interface Props {
@@ -77,8 +77,8 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
         <div className="text-sm font-semibold text-nesio-ink">连接账号</div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-              <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+            <div className="w-10 h-10 rounded-xl bg-nesio-accentSoft flex items-center justify-center">
+                <svg className="w-5 h-5 text-nesio-accent" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
               </svg>
             </div>
@@ -91,7 +91,7 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
           </div>
           <button
             onClick={connectGmail}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition active:opacity-80 ${
+            className={`ui-btn rounded-full px-4 ${
               gmailConnected ? 'bg-nesio-border text-nesio-muted' : 'bg-nesio-accent text-white'
             }`}
           >
@@ -108,7 +108,7 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
               <button
                 key={mode}
                 onClick={() => onThemeChange(mode)}
-                className={`px-4 py-2 rounded-full border transition ${themeMode === mode ? 'bg-nesio-accent text-white border-nesio-accent' : 'border-nesio-border text-nesio-ink'}`}
+                className={`ui-chip transition ${themeMode === mode ? 'ui-chip-active' : ''}`}
               >
                 {mode === 'light' ? '浅色' : '深色'}
               </button>
@@ -126,7 +126,7 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
               <button
                 key={item.key}
                 onClick={() => onPaletteChange(item.key)}
-                className={`px-4 py-2 rounded-full border transition ${palette === item.key ? 'bg-nesio-accent text-white border-nesio-accent' : 'border-nesio-border text-nesio-ink'}`}
+                className={`ui-chip transition ${palette === item.key ? 'ui-chip-active' : ''}`}
               >
                 {item.label}
               </button>
@@ -140,9 +140,9 @@ export default function SettingsPage({ onBack, themeMode, palette, onThemeChange
         {menuItems.map((item) => (
           <button
             key={item.label}
-            className="w-full nesio-card p-4 flex items-center gap-4 active:scale-[0.99] transition"
+            className="w-full ui-card-plain p-4 flex items-center gap-4 active:scale-[0.99] transition"
           >
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.color}`}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-nesio-accentSoft text-nesio-accent">
               <item.icon className="w-6 h-6" />
             </div>
             <span className="flex-1 text-left text-base font-medium text-nesio-ink">{item.label}</span>

@@ -45,8 +45,9 @@ interface SpeechRecognitionLike {
   lang: string
   interimResults: boolean
   maxAlternatives: number
+  continuous?: boolean
   onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: (() => void) | null
+  onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
   start: () => void
   stop: () => void
@@ -252,6 +253,7 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
 
     const recognition = new Constructor()
     recognition.lang = 'zh-CN'
+    recognition.continuous = false
     recognition.interimResults = false
     recognition.maxAlternatives = 1
     recognition.onresult = (event) => {
@@ -263,8 +265,9 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
       setSaveMessage('语音已转成文字。')
       setSaveTone('success')
     }
-    recognition.onerror = () => {
-      setSaveMessage('语音输入失败，请检查麦克风权限。')
+    recognition.onerror = (event) => {
+      const reason = event?.error ? `（${event.error}）` : ''
+      setSaveMessage(`语音输入失败，请检查麦克风权限${reason}`)
       setSaveTone('error')
       setIsListening(false)
       recognitionRef.current = null
@@ -275,10 +278,17 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     }
 
     recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-    setSaveMessage('正在听你说话...')
-    setSaveTone('info')
+    try {
+      recognition.start()
+      setIsListening(true)
+      setSaveMessage('正在听你说话...')
+      setSaveTone('info')
+    } catch {
+      setSaveMessage('无法启动语音输入，请检查浏览器与麦克风权限。')
+      setSaveTone('error')
+      setIsListening(false)
+      recognitionRef.current = null
+    }
   }
 
   return (

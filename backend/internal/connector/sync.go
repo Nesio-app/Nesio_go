@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -118,6 +119,18 @@ func fetchConnectorSignals(ctx context.Context, provider string, credentials map
 		return fetchGmailSignals(ctx, credentials)
 	case "calendar", "googlecalendar":
 		return fetchCalendarSignals(ctx, credentials)
+	case "teslafleet":
+		return fetchTeslaFleetSignals(ctx, credentials)
+	case "plaid":
+		return fetchPlaidSignals(ctx, credentials)
+	case "granola":
+		return fetchGranolaSignals(ctx, credentials)
+	case "flomo":
+		return fetchFlomoSignals(ctx, credentials)
+	case "googletimeline":
+		return fetchGoogleTimelineSignals(credentials)
+	case "applehealth":
+		return fetchAppleHealthSignals(credentials)
 	default:
 		return nil, nil
 	}
@@ -275,4 +288,233 @@ func headerValue(headers []struct {
 		}
 	}
 	return ""
+}
+
+func fetchTeslaFleetSignals(ctx context.Context, credentials map[string]any) ([]models.Signal, error) {
+	accessToken, _ := credentials["access_token"].(string)
+	if strings.TrimSpace(accessToken) == "" {
+		return nil, fmt.Errorf("tesla_fleet connector missing access_token")
+	}
+	endpoint, _ := credentials["endpoint"].(string)
+	if strings.TrimSpace(endpoint) == "" {
+		endpoint = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/vehicles"
+	}
+
+	var payload struct {
+		Response []struct {
+			ID           int64  `json:"id"`
+			DisplayName  string `json:"display_name"`
+			State        string `json:"state"`
+			BatteryLevel *int   `json:"battery_level"`
+			Vin          string `json:"vin"`
+		} `json:"response"`
+	}
+	if err := doBearerJSON(ctx, accessToken, endpoint, &payload); err != nil {
+		return nil, err
+	}
+	results := make([]models.Signal, 0, len(payload.Response))
+	for _, vehicle := range payload.Response {
+		raw := fmt.Sprintf("Tesla %s 状态 %s", vehicle.DisplayName, vehicle.State)
+		fields := map[string]any{"name": vehicle.DisplayName, "state": vehicle.State, "vin": vehicle.Vin}
+		if vehicle.BatteryLevel != nil {
+			fields["battery_level"] = *vehicle.BatteryLevel
+			raw = fmt.Sprintf("%s，电量 %d%%", raw, *vehicle.BatteryLevel)
+		}
+		results = append(results, models.Signal{
+			Source:    "tesla_fleet",
+			AnchorID:  fmt.Sprintf("tesla-%d", vehicle.ID),
+			Fields:    fields,
+			RawData:   raw,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+	return results, nil
+}
+
+func fetchPlaidSignals(ctx context.Context, credentials map[string]any) ([]models.Signal, error) {
+	clientID, _ := credentials["client_id"].(string)
+	secret, _ := credentials["secret"].(string)
+	accessToken, _ := credentials["access_token"].(string)
+	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(secret) == "" || strings.TrimSpace(accessToken) == "" {
+		return nil, fmt.Errorf("plaid connector missing client_id/secret/access_token")
+	}
+	endpoint, _ := credentials["endpoint"].(string)
+	if strings.TrimSpace(endpoint) == "" {
+		endpoint = "https://production.plaid.com/accounts/balance/get"
+	}
+
+	reqBody, _ := json.Marshal(map[string]any{
+		"client_id":    clientID,
+		"secret":       secret,
+		"access_token": accessToken,
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("plaid api error: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Accounts []struct {
+			AccountID string `json:"account_id"`
+			Name      string `json:"name"`
+			Subtype   string `json:"subtype"`
+			Balances  struct {
+				Available *float64 `json:"available"`
+				Current   float64  `json:"current"`
+			} `json:"balances"`
+		} `json:"accounts"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	results := make([]models.Signal, 0, len(payload.Accounts))
+	for _, account := range payload.Accounts {
+		raw := fmt.Sprintf("%s 当前余额 %.2f", account.Name, account.Balances.Current)
+		fields := map[string]any{
+			"account_name": account.Name,
+			"subtype":      account.Subtype,
+			"current":      account.Balances.Current,
+		}
+		if account.Balances.Available != nil {
+			fields["available"] = *account.Balances.Available
+		}
+		results = append(results, models.Signal{
+			Source:    "plaid",
+			AnchorID:  account.AccountID,
+			Fields:    fields,
+			RawData:   raw,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+	return results, nil
+}
+
+func fetchGranolaSignals(ctx context.Context, credentials map[string]any) ([]models.Signal, error) {
+	return fetchGenericJSONSignals(ctx, credentials, "granola")
+}
+
+func fetchFlomoSignals(ctx context.Context, credentials map[string]any) ([]models.Signal, error) {
+	return fetchGenericJSONSignals(ctx, credentials, "flomo")
+}
+
+func fetchGoogleTimelineSignals(credentials map[string]any) ([]models.Signal, error) {
+	events, ok := credentials["timeline_events"].([]any)
+	if !ok || len(events) == 0 {
+		return nil, fmt.Errorf("google_timeline connector missing timeline_events")
+	}
+	results := make([]models.Signal, 0, len(events))
+	for idx, item := range events {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := row["name"].(string)
+		if strings.TrimSpace(name) == "" {
+			name = "timeline_event"
+		}
+		results = append(results, models.Signal{
+			Source:    "google_timeline",
+			AnchorID:  fmt.Sprintf("timeline-%d", idx),
+			Fields:    row,
+			RawData:   name,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+	return results, nil
+}
+
+func fetchAppleHealthSignals(credentials map[string]any) ([]models.Signal, error) {
+	entries, ok := credentials["entries"].([]any)
+	if !ok || len(entries) == 0 {
+		return nil, fmt.Errorf("apple_health connector missing entries")
+	}
+	results := make([]models.Signal, 0, len(entries))
+	for idx, item := range entries {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		title, _ := row["metric"].(string)
+		if strings.TrimSpace(title) == "" {
+			title = "health_metric"
+		}
+		results = append(results, models.Signal{
+			Source:    "apple_health",
+			AnchorID:  fmt.Sprintf("health-%d", idx),
+			Fields:    row,
+			RawData:   title,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+	return results, nil
+}
+
+func fetchGenericJSONSignals(ctx context.Context, credentials map[string]any, source string) ([]models.Signal, error) {
+	endpoint, _ := credentials["endpoint"].(string)
+	if strings.TrimSpace(endpoint) == "" {
+		return nil, fmt.Errorf("%s connector missing endpoint", source)
+	}
+	token, _ := credentials["access_token"].(string)
+
+	var payload struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := doOptionalBearerJSON(ctx, token, endpoint, &payload); err != nil {
+		return nil, err
+	}
+	results := make([]models.Signal, 0, len(payload.Items))
+	for idx, item := range payload.Items {
+		raw := source
+		if title, ok := item["title"].(string); ok && strings.TrimSpace(title) != "" {
+			raw = title
+		}
+		results = append(results, models.Signal{
+			Source:    source,
+			AnchorID:  fmt.Sprintf("%s-%d", source, idx),
+			Fields:    item,
+			RawData:   raw,
+			Timestamp: time.Now().UTC(),
+		})
+	}
+	return results, nil
+}
+
+func doBearerJSON(ctx context.Context, accessToken, endpoint string, target any) error {
+	if strings.TrimSpace(accessToken) == "" {
+		return fmt.Errorf("missing access_token")
+	}
+	return doOptionalBearerJSON(ctx, accessToken, endpoint, target)
+}
+
+func doOptionalBearerJSON(ctx context.Context, accessToken, endpoint string, target any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	if strings.TrimSpace(accessToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("provider api error: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	return json.NewDecoder(resp.Body).Decode(target)
 }

@@ -3,10 +3,14 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/connector"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 )
 
@@ -121,6 +125,59 @@ func (w *Worker) runDailyMaintenance(ctx context.Context, task *asynq.Task) erro
 		return err
 	}
 
+	if err := w.ensureDailyBriefs(ctx); err != nil {
+		log.Printf("daily brief generation error: %v", err)
+	}
+
 	log.Printf("Daily cleanup and connector sync completed: %s", task.Type())
+	return nil
+}
+
+func (w *Worker) ensureDailyBriefs(ctx context.Context) error {
+	type userRow struct {
+		ID       string `db:"id"`
+		Timezone string `db:"timezone"`
+	}
+	users := make([]userRow, 0)
+	if err := w.store.DB.Select(&users, `SELECT id::text as id, timezone FROM users`); err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		tz := strings.TrimSpace(user.Timezone)
+		if tz == "" {
+			tz = "Asia/Shanghai"
+		}
+		loc, err := time.LoadLocation(tz)
+		if err != nil {
+			loc = time.FixedZone("UTC", 0)
+		}
+		nowLocal := time.Now().In(loc)
+		if nowLocal.Hour() != 8 {
+			continue
+		}
+		localDay := nowLocal.Format("2006-01-02")
+
+		uid, err := uuid.Parse(user.ID)
+		if err != nil {
+			continue
+		}
+
+		var taskCount int
+		var reminderCount int
+		var cardCount int
+		_ = w.store.DB.Get(&taskCount, `SELECT COUNT(*) FROM life_nodes WHERE user_id = $1 AND type = 'task' AND status IN ('active', 'later')`, uid)
+		_ = w.store.DB.Get(&reminderCount, `SELECT COUNT(*) FROM reminders WHERE user_id = $1 AND is_done = false`, uid)
+		_ = w.store.DB.Get(&cardCount, `SELECT COUNT(*) FROM today_cards WHERE user_id = $1 AND local_day = $2 AND dismissed_at IS NULL`, uid, localDay)
+
+		content := fmt.Sprintf("早上好。今天待办 %d 项，提醒 %d 条，今日卡片 %d 条。先处理最重要的一条。", taskCount, reminderCount, cardCount)
+		_, _ = w.store.DB.Exec(`
+			INSERT INTO daily_briefs (user_id, local_day, content)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (user_id, local_day)
+			DO UPDATE SET content = EXCLUDED.content, generated_at = now()
+		`, uid, localDay, content)
+	}
+
 	return nil
 }

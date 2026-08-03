@@ -113,3 +113,49 @@ type Signal struct {
 	RawData   string         `json:"raw_data"`
 	Timestamp time.Time      `json:"timestamp"`
 }
+
+type Room struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	SortOrder int       `db:"sort_order" json:"sort_order"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+type Container struct {
+	ID                uuid.UUID  `db:"id" json:"id"`
+	UserID            uuid.UUID  `db:"user_id" json:"user_id"`
+	RoomID            *uuid.UUID `db:"room_id" json:"room_id,omitempty"`
+	Name              string     `db:"name" json:"name"`
+	Icon              string     `db:"icon" json:"icon"`
+	ParentContainerID *uuid.UUID `db:"parent_container_id" json:"parent_container_id,omitempty"`
+	SortOrder         int        `db:"sort_order" json:"sort_order"`
+	CreatedAt         time.Time  `db:"created_at" json:"created_at"`
+}
+
+type ItemDetail struct {
+	NodeID            uuid.UUID      `db:"node_id" json:"node_id"`
+	RoomID            *uuid.UUID     `db:"room_id" json:"room_id,omitempty"`
+	ContainerID       *uuid.UUID     `db:"container_id" json:"container_id,omitempty"`
+	LocationNote      *string        `db:"location_note" json:"location_note,omitempty"`
+	ExpiryDate        *time.Time     `db:"expiry_date" json:"expiry_date,omitempty"`
+	ExpiryRemindDays  int            `db:"expiry_remind_days" json:"expiry_remind_days"`
+	IsDocument        bool           `db:"is_document" json:"is_document"`
+	DocumentType      *string        `db:"document_type" json:"document_type,omitempty"`
+	DocumentNumber    *string        `db:"document_number" json:"document_number,omitempty"`
+	IssuingAuthority  *string        `db:"issuing_authority" json:"issuing_authority,omitempty"`
+	PurchaseDate      *time.Time     `db:"purchase_date" json:"purchase_date,omitempty"`
+	PurchasePrice     *float64       `db:"purchase_price" json:"purchase_price,omitempty"`
+	PurchaseCurrency  string         `db:"purchase_currency" json:"purchase_currency"`
+	Retailer          *string        `db:"retailer" json:"retailer,omitempty"`
+	VisualHash        *string        `db:"visual_hash" json:"visual_hash,omitempty"`
+	PrimaryImageURL   *string        `db:"primary_image_url" json:"primary_image_url,omitempty"`
+	GalleryURLs       pq.StringArray `db:"gallery_urls" json:"gallery_urls"`
+	Quantity          int            `db:"quantity" json:"quantity"`
+	Unit              *string        `db:"unit" json:"unit,omitempty"`
+	Condition         string         `db:"condition" json:"condition"`
+	IsLent            bool           `db:"is_lent" json:"is_lent"`
+	LentTo            *string        `db:"lent_to" json:"lent_to,omitempty"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}

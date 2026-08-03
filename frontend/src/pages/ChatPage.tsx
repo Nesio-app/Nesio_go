@@ -26,8 +26,9 @@ interface SpeechRecognitionLike {
   lang: string
   interimResults: boolean
   maxAlternatives: number
+  continuous?: boolean
   onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: (() => void) | null
+  onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
   start: () => void
   stop: () => void
@@ -144,6 +145,7 @@ export default function ChatPage({ onBack }: Props) {
 
     const recognition = new Constructor()
     recognition.lang = 'zh-CN'
+    recognition.continuous = false
     recognition.interimResults = false
     recognition.maxAlternatives = 1
     recognition.onresult = (event) => {
@@ -153,10 +155,11 @@ export default function ChatPage({ onBack }: Props) {
       }
       setDraft((current) => (current ? `${current} ${transcript}` : transcript))
     }
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      const reason = event?.error ? `（${event.error}）` : ''
       setMessages((current) => [
         ...current,
-        { id: `assistant-speech-error-${Date.now()}`, role: 'assistant', content: '语音输入失败，请检查麦克风权限。' },
+        { id: `assistant-speech-error-${Date.now()}`, role: 'assistant', content: `语音输入失败，请检查麦克风权限${reason}` },
       ])
       setIsListening(false)
       recognitionRef.current = null
@@ -167,8 +170,17 @@ export default function ChatPage({ onBack }: Props) {
     }
 
     recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
+    try {
+      recognition.start()
+      setIsListening(true)
+    } catch {
+      setMessages((current) => [
+        ...current,
+        { id: `assistant-speech-start-error-${Date.now()}`, role: 'assistant', content: '无法启动语音输入，请检查浏览器与麦克风权限。' },
+      ])
+      setIsListening(false)
+      recognitionRef.current = null
+    }
   }
 
   const openUpload = () => {

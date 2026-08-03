@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	token_hash text NOT NULL,
+	expires_at timestamptz NOT NULL,
+	used_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user_expires ON password_reset_tokens(user_id, expires_at DESC);
+
 CREATE TABLE IF NOT EXISTS connectors (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE CASCADE,
@@ -93,6 +103,128 @@ CREATE TABLE IF NOT EXISTS life_nodes (
 );
 CREATE INDEX IF NOT EXISTS idx_nodes_user_status ON life_nodes(user_id, status, due_date);
 CREATE INDEX IF NOT EXISTS idx_nodes_user_domain ON life_nodes(user_id, domain);
+
+CREATE TABLE IF NOT EXISTS rooms (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	name text NOT NULL,
+	icon text NOT NULL DEFAULT '🏠',
+	sort_order int NOT NULL DEFAULT 0,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rooms_user_sort ON rooms(user_id, sort_order, created_at);
+
+CREATE TABLE IF NOT EXISTS containers (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	room_id uuid REFERENCES rooms(id) ON DELETE SET NULL,
+	name text NOT NULL,
+	icon text NOT NULL DEFAULT '📦',
+	parent_container_id uuid REFERENCES containers(id),
+	sort_order int NOT NULL DEFAULT 0,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_containers_user_room ON containers(user_id, room_id, sort_order, created_at);
+
+CREATE TABLE IF NOT EXISTS item_details (
+	node_id uuid PRIMARY KEY REFERENCES life_nodes(id) ON DELETE CASCADE,
+	room_id uuid REFERENCES rooms(id),
+	container_id uuid REFERENCES containers(id),
+	location_note text,
+	expiry_date date,
+	expiry_remind_days int NOT NULL DEFAULT 30,
+	is_document boolean NOT NULL DEFAULT false,
+	document_type varchar(32),
+	document_number text,
+	issuing_authority text,
+	purchase_date date,
+	purchase_price numeric(10,2),
+	purchase_currency varchar(3) NOT NULL DEFAULT 'CNY',
+	retailer text,
+	visual_hash text,
+	primary_image_url text,
+	gallery_urls text[] NOT NULL DEFAULT '{}',
+	quantity int NOT NULL DEFAULT 1,
+	unit varchar(16),
+	condition varchar(16) NOT NULL DEFAULT 'good',
+	is_lent boolean NOT NULL DEFAULT false,
+	lent_to text,
+	updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_items_room ON item_details(room_id);
+CREATE INDEX IF NOT EXISTS idx_items_container ON item_details(container_id);
+CREATE INDEX IF NOT EXISTS idx_items_expiry ON item_details(expiry_date) WHERE expiry_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_items_document ON item_details(is_document, expiry_date) WHERE is_document = true;
+
+CREATE TABLE IF NOT EXISTS item_tags (
+	item_id uuid REFERENCES life_nodes(id) ON DELETE CASCADE,
+	tag text NOT NULL,
+	confidence float NOT NULL DEFAULT 1.0,
+	source varchar(32),
+	PRIMARY KEY (item_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag);
+
+CREATE TABLE IF NOT EXISTS relations (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	from_node uuid REFERENCES life_nodes(id) ON DELETE CASCADE,
+	to_node uuid REFERENCES life_nodes(id) ON DELETE CASCADE,
+	relation text NOT NULL,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_node, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(to_node, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS item_visual_fingerprints (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	node_id uuid REFERENCES life_nodes(id) ON DELETE CASCADE,
+	visual_hash text NOT NULL,
+	embedding jsonb,
+	image_url text,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_item_visual_user_hash ON item_visual_fingerprints(user_id, visual_hash);
+
+CREATE TABLE IF NOT EXISTS reminders (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	node_id uuid REFERENCES life_nodes(id) ON DELETE CASCADE,
+	title text NOT NULL,
+	remind_at timestamptz NOT NULL,
+	repeat_rule jsonb,
+	is_done boolean NOT NULL DEFAULT false,
+	source text,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_user_time ON reminders(user_id, remind_at) WHERE is_done = false;
+
+CREATE TABLE IF NOT EXISTS medications (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	name text NOT NULL,
+	dosage text,
+	frequency text,
+	schedule jsonb,
+	start_date date,
+	end_date date,
+	ocr_raw text,
+	image_url text,
+	location_reminder jsonb,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS daily_briefs (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	local_day text NOT NULL,
+	content text NOT NULL,
+	audio_url text,
+	is_read boolean NOT NULL DEFAULT false,
+	generated_at timestamptz NOT NULL DEFAULT now(),
+	UNIQUE (user_id, local_day)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_briefs_user_day ON daily_briefs(user_id, local_day DESC);
 
 CREATE TABLE IF NOT EXISTS today_cards (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
