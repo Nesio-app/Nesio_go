@@ -21,18 +21,23 @@ interface MemoryItem {
   domain?: string
   title: string
   body?: string
-  tags: string[]
+  tags?: string[] | null
   created_at: string
 }
 
 export default function MemoryPage({ onBack }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
+  const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null)
   const { data } = useQuery({
     queryKey: ['memories'],
     queryFn: async () => {
       const response = await memories.list()
-      return response.data as MemoryItem[]
+      const rows = (response.data ?? []) as MemoryItem[]
+      return rows.map((item) => ({
+        ...item,
+        tags: Array.isArray(item.tags) ? item.tags : [],
+      }))
     },
   })
 
@@ -44,13 +49,63 @@ export default function MemoryPage({ onBack }: Props) {
     { name: '其他', count: allItems.filter((item) => !['task', 'memory'].includes(item.type)).length },
   ]
   const memoryItems = allItems.filter((item) => {
+    const tags = Array.isArray(item.tags) ? item.tags : []
     const matchesCategory = activeTag === '全部'
       || (activeTag === '任务' && item.type === 'task')
       || (activeTag === '记忆' && item.type === 'memory')
       || (activeTag === '其他' && !['task', 'memory'].includes(item.type))
-    const searchText = `${item.title} ${item.body ?? ''} ${item.domain ?? ''} ${item.tags.join(' ')}`.toLowerCase()
+    const searchText = `${item.title} ${item.body ?? ''} ${item.domain ?? ''} ${tags.join(' ')}`.toLowerCase()
     return matchesCategory && searchText.includes(query.trim().toLowerCase())
   })
+
+  if (selectedItem) {
+    const tags = Array.isArray(selectedItem.tags) ? selectedItem.tags : []
+    return (
+      <div className="px-5 pt-6 pb-4 space-y-5">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedItem(null)}
+            className="ui-icon-btn w-8 h-8"
+          >
+            <IconArrowLeft className="w-5 h-5" />
+          </button>
+          <h2 className="type-h2 text-nesio-ink">记忆详情</h2>
+        </div>
+
+        <article className="ui-card p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="type-title text-nesio-ink break-words">{selectedItem.title}</h3>
+            <span className="shrink-0 rounded-full bg-nesio-accentSoft px-2 py-1 type-caption text-nesio-accent">
+              {selectedItem.type === 'task' ? '任务' : selectedItem.type === 'memory' ? '记忆' : selectedItem.type}
+            </span>
+          </div>
+
+          <div className="type-caption text-nesio-muted">
+            创建时间 {new Date(selectedItem.created_at).toLocaleString('zh-CN', { hour12: false })}
+          </div>
+
+          {selectedItem.body && (
+            <div className="type-body text-nesio-ink whitespace-pre-wrap break-words">{selectedItem.body}</div>
+          )}
+
+          {(selectedItem.domain || tags.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {selectedItem.domain && (
+                <span className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
+                  {selectedItem.domain}
+                </span>
+              )}
+              {tags.map((tag) => (
+                <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </article>
+      </div>
+    )
+  }
 
   return (
     <div className="px-5 pt-6 pb-4 space-y-5">
@@ -58,11 +113,11 @@ export default function MemoryPage({ onBack }: Props) {
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="w-8 h-8 flex items-center justify-center text-nesio-ink active:scale-90 transition"
+          className="ui-icon-btn w-8 h-8"
         >
           <IconArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-lg font-bold text-nesio-ink">搜记忆</h2>
+        <h2 className="type-h2 text-nesio-ink">搜记忆</h2>
       </div>
 
       {/* Search */}
@@ -73,7 +128,7 @@ export default function MemoryPage({ onBack }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜记忆"
-          className="w-full bg-white rounded-2xl pl-10 pr-4 py-3 text-base outline-none shadow-card placeholder:text-nesio-muted"
+          className="ui-input pl-10 shadow-card"
         />
       </div>
 
@@ -96,7 +151,7 @@ export default function MemoryPage({ onBack }: Props) {
 
       {/* All Memories */}
       <div>
-        <div className="text-base font-bold text-nesio-ink mb-3">
+        <div className="type-title text-nesio-ink mb-3">
           全部记忆映射 · {allItems.length} 条
         </div>
 
@@ -106,10 +161,10 @@ export default function MemoryPage({ onBack }: Props) {
             <button
               key={t.name}
               onClick={() => setActiveTag(t.name)}
-              className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5 transition ${
+              className={`ui-chip transition ${
                 activeTag === t.name
-                  ? 'bg-nesio-accent text-white'
-                  : 'bg-white text-nesio-ink border border-nesio-border'
+                  ? 'ui-chip-active'
+                  : ''
               }`}
             >
               {t.name === '任务' && <IconCalendar className="w-3.5 h-3.5" />}
@@ -117,7 +172,7 @@ export default function MemoryPage({ onBack }: Props) {
               {t.name === '其他' && <IconUser className="w-3.5 h-3.5" />}
               <span>{t.name}</span>
               {t.count > 0 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${activeTag === t.name ? 'bg-white/20' : 'bg-nesio-bg'}`}>
+                <span className={`type-caption px-1.5 py-0.5 rounded-full ${activeTag === t.name ? 'bg-white/20' : 'bg-nesio-bg'}`}>
                   {t.count}
                 </span>
               )}
@@ -126,49 +181,57 @@ export default function MemoryPage({ onBack }: Props) {
         </div>
 
         {/* Expandable Section */}
-        <button className="w-full bg-white rounded-2xl px-4 py-3.5 flex items-center justify-between shadow-card mb-3 active:scale-[0.99] transition">
-          <span className="text-base text-nesio-ink">交易 · 1440 笔</span>
-          <span className="text-sm text-nesio-muted">—— 展开</span>
+        <button className="w-full ui-card-plain px-4 py-3.5 flex items-center justify-between mb-3 active:scale-[0.99] transition">
+          <span className="type-body text-nesio-ink">交易 · 1440 笔</span>
+          <span className="type-caption text-nesio-muted">—— 展开</span>
         </button>
 
         {/* Source Cards */}
         <div className="space-y-3">
-          {memoryItems.slice(0, 8).map((item) => (
-            <div key={item.id} className="bg-white rounded-2xl p-4 shadow-card">
+          {memoryItems.slice(0, 8).map((item) => {
+            const tags = Array.isArray(item.tags) ? item.tags : []
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedItem(item)}
+                className="ui-card-plain p-4 w-full text-left active:scale-[0.99] transition"
+              >
               <div className="flex items-start justify-between gap-3">
-                <div className="text-base font-medium text-nesio-ink">{item.title}</div>
-                <span className="shrink-0 rounded-full bg-nesio-accentSoft px-2 py-1 text-xs text-nesio-accent">
+                <div className="type-body font-medium text-nesio-ink">{item.title}</div>
+                <span className="shrink-0 rounded-full bg-nesio-accentSoft px-2 py-1 type-caption text-nesio-accent">
                   {item.type === 'task' ? '任务' : item.type === 'memory' ? '记忆' : item.type}
                 </span>
               </div>
-              {item.body && <div className="text-sm text-nesio-muted mt-1">{item.body}</div>}
-              {(item.domain || item.tags.length > 0) && (
+              {item.body && <div className="type-body text-nesio-muted mt-1">{item.body}</div>}
+              {(item.domain || tags.length > 0) && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {item.domain && (
-                    <span className="px-2 py-1 rounded-full bg-nesio-bg text-xs text-nesio-muted">
+                    <span className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
                       {item.domain}
                     </span>
                   )}
-                  {item.tags.map((tag) => (
-                    <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg text-xs text-nesio-muted">
+                  {tags.map((tag) => (
+                    <span key={tag} className="px-2 py-1 rounded-full bg-nesio-bg type-caption text-nesio-muted">
                       {tag}
                     </span>
                   ))}
                 </div>
               )}
-            </div>
-          ))}
+              </button>
+            )
+          })}
           {memoryItems.length === 0 && (
-            <div className="text-sm text-nesio-muted">当前筛选下还没有云端记忆映射。</div>
+            <div className="type-body text-nesio-muted">当前筛选下还没有云端记忆映射。</div>
           )}
           {memoryItems.length > 0 && (
             <div className="grid grid-cols-2 gap-3">
               {sources.map((s) => (
-                <button key={s.name} className="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-card active:scale-[0.98] transition">
+                <button key={s.name} className="ui-card-plain p-4 flex items-center gap-3 active:scale-[0.98] transition">
                   <div className="w-10 h-10 rounded-xl bg-nesio-accentSoft flex items-center justify-center">
                     <s.icon className="w-5 h-5 text-nesio-accent" />
                   </div>
-                  <span className="text-base font-medium text-nesio-ink">{s.name}</span>
+                  <span className="type-body font-medium text-nesio-ink">{s.name}</span>
                 </button>
               ))}
             </div>
