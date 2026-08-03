@@ -22,6 +22,18 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Nesio uses the camera to capture and recognize items.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Nesio uses photos for item recognition and memory import.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Nesio uses location to suggest context-aware reminders.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Nesio uses microphone for voice input when creating tasks or memories.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Nesio reads selected Health data to provide daily insights.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Nesio may write selected Health notes if you enable health sync.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
