@@ -19,7 +19,7 @@ type ConnectorAuthRequest struct {
 
 func (s *Server) handleListConnectors(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
-	var connectors []models.Connector
+	connectors := make([]models.Connector, 0)
 	err := s.store.DB.Select(&connectors, "SELECT id, user_id, provider, is_active, last_sync_at, created_at FROM connectors WHERE user_id = $1", userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())

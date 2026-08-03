@@ -8,6 +8,95 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type defaultRoomSeed struct {
+	Name      string
+	Icon      string
+	SortOrder int
+}
+
+type defaultContainerSeed struct {
+	Name     string
+	Icon     string
+	RoomName *string
+	SortOrder int
+}
+
+var defaultRooms = []defaultRoomSeed{
+	{Name: "客厅", Icon: "🛋️", SortOrder: 1},
+	{Name: "卧室", Icon: "🛏️", SortOrder: 2},
+	{Name: "厨房", Icon: "🍳", SortOrder: 3},
+	{Name: "书房", Icon: "📚", SortOrder: 4},
+	{Name: "卫生间", Icon: "🚿", SortOrder: 5},
+	{Name: "玄关", Icon: "🚪", SortOrder: 6},
+	{Name: "储藏室", Icon: "📦", SortOrder: 7},
+	{Name: "阳台", Icon: "🌿", SortOrder: 8},
+}
+
+func strPtr(s string) *string { return &s }
+
+var defaultContainers = []defaultContainerSeed{
+	{Name: "冰箱", Icon: "❄️", RoomName: strPtr("厨房"), SortOrder: 1},
+	{Name: "橱柜", Icon: "🗄️", RoomName: strPtr("厨房"), SortOrder: 2},
+	{Name: "衣柜", Icon: "👔", RoomName: strPtr("卧室"), SortOrder: 1},
+	{Name: "床头柜", Icon: "🛏️", RoomName: strPtr("卧室"), SortOrder: 2},
+	{Name: "书架", Icon: "📚", RoomName: strPtr("书房"), SortOrder: 1},
+	{Name: "鞋柜", Icon: "👟", RoomName: strPtr("玄关"), SortOrder: 1},
+	{Name: "药箱", Icon: "💊", RoomName: nil, SortOrder: 1},
+}
+
+func (s *Server) ensureDefaultSpaces(userID uuid.UUID) error {
+	tx, err := s.store.DB.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var roomCount int
+	if err := tx.Get(&roomCount, `SELECT COUNT(1) FROM rooms WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	if roomCount == 0 {
+		for _, room := range defaultRooms {
+			if _, err := tx.Exec(`
+				INSERT INTO rooms (user_id, name, icon, sort_order)
+				VALUES ($1, $2, $3, $4)
+			`, userID, room.Name, room.Icon, room.SortOrder); err != nil {
+				return err
+			}
+		}
+	}
+
+	var containerCount int
+	if err := tx.Get(&containerCount, `SELECT COUNT(1) FROM containers WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	if containerCount == 0 {
+		for _, container := range defaultContainers {
+			if container.RoomName == nil {
+				if _, err := tx.Exec(`
+					INSERT INTO containers (user_id, room_id, name, icon, parent_container_id, sort_order)
+					VALUES ($1, NULL, $2, $3, NULL, $4)
+				`, userID, container.Name, container.Icon, container.SortOrder); err != nil {
+					return err
+				}
+				continue
+			}
+
+			if _, err := tx.Exec(`
+				INSERT INTO containers (user_id, room_id, name, icon, parent_container_id, sort_order)
+				SELECT $1, r.id, $2, $3, NULL, $4
+				FROM rooms r
+				WHERE r.user_id = $1 AND r.name = $5
+				LIMIT 1
+			`, userID, container.Name, container.Icon, container.SortOrder, *container.RoomName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
+}
+
 type upsertRoomRequest struct {
 	Name      string `json:"name"`
 	Icon      string `json:"icon,omitempty"`
@@ -24,6 +113,9 @@ type upsertContainerRequest struct {
 
 func (s *Server) handleListRooms(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
+	if err := s.ensureDefaultSpaces(userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 	rooms := make([]models.Room, 0)
 	err := s.store.DB.Select(&rooms, `
 		SELECT id, user_id, name, icon, sort_order, created_at
@@ -107,6 +199,9 @@ func (s *Server) handleDeleteRoom(c echo.Context) error {
 
 func (s *Server) handleListContainers(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
+	if err := s.ensureDefaultSpaces(userID); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 	room := c.QueryParam("room")
 	containers := make([]models.Container, 0)
 	err := s.store.DB.Select(&containers, `
