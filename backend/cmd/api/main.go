@@ -30,6 +30,9 @@ func main() {
 	if err := connector.MigrateLegacyCredentials(store); err != nil {
 		log.Fatalf("failed to migrate legacy connector credentials: %v", err)
 	}
+	if err := storage.EnsureQdrantCollection(ctx, os.Getenv("QDRANT_URL"), "item_visual", 16); err != nil {
+		log.Printf("warning: ensure qdrant item_visual collection failed: %v", err)
+	}
 
 	backgroundWorker := worker.New(store)
 	go backgroundWorker.Start()
