@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -105,6 +106,17 @@ func (s *Server) handleSearch(c echo.Context) error {
 		return c.JSON(http.StatusOK, []searchResult{})
 	}
 	limit := 20
+	if limitStr := strings.TrimSpace(c.QueryParam("limit")); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil {
+			if parsed < 1 {
+				parsed = 1
+			}
+			if parsed > 100 {
+				parsed = 100
+			}
+			limit = parsed
+		}
+	}
 
 	rows := make([]searchResult, 0)
 	err := s.store.DB.Select(&rows, `

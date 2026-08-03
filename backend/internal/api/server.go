@@ -106,14 +106,20 @@ func (s *Server) registerRoutes() {
 
 	// Search and relations (3.0 foundation)
 	api.GET("/search", s.handleSearch)
+	api.GET("/nodes/mention", s.handleNodesMention)
 	api.GET("/relations", s.handleListRelations)
 	api.POST("/relations", s.handleCreateRelation)
 	api.DELETE("/relations/:id", s.handleDeleteRelation)
 
 	// Chat
 	api.POST("/chat", s.handleChat)
+	api.POST("/ask", s.handleAsk)
 	api.GET("/chat/history", s.handleChatHistory)
 	api.GET("/events", s.handleEvents)
+
+	// Extraction compatibility routes
+	api.POST("/extraction/analyze", s.handleExtractionAnalyze)
+	api.POST("/extraction/upload", s.handleExtractionUpload)
 
 	// Connectors
 	api.GET("/connectors", s.handleListConnectors)
@@ -142,6 +148,14 @@ func (s *Server) registerRoutes() {
 	// User
 	api.GET("/me", s.handleGetMe)
 	api.PATCH("/me", s.handleUpdateMe)
+
+	// Additional compatibility aliases
+	api.GET("/medicine", s.handleListMedications)
+	api.POST("/medicine/ocr", s.handleMedicineOCR)
+	api.POST("/medicine/:id/reminder", s.handleMedicineReminder)
+	api.GET("/daily-brief", s.handleDailyBriefAlias)
+	api.POST("/daily-brief/:id/read", s.handleMarkDailyBriefRead)
+	api.POST("/export", s.handleExportData)
 }
 
 func (s *Server) Start(addr string) error {
