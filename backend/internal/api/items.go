@@ -13,62 +13,16 @@ import (
 	"strings"
 	"time"
 
+	itemspkg "github.com/Nesio-app/Nesio_go/internal/items"
 	"github.com/Nesio-app/Nesio_go/internal/vision"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 )
 
-type createItemRequest struct {
-	Name             string     `json:"name"`
-	Body             *string    `json:"body,omitempty"`
-	RoomID           *uuid.UUID `json:"room_id,omitempty"`
-	ContainerID      *uuid.UUID `json:"container_id,omitempty"`
-	LocationNote     *string    `json:"location_note,omitempty"`
-	ExpiryDate       *string    `json:"expiry_date,omitempty"`
-	ExpiryRemindDays *int       `json:"expiry_remind_days,omitempty"`
-	IsDocument       bool       `json:"is_document,omitempty"`
-	DocumentType     *string    `json:"document_type,omitempty"`
-	DocumentNumber   *string    `json:"document_number,omitempty"`
-	Quantity         *int       `json:"quantity,omitempty"`
-	Unit             *string    `json:"unit,omitempty"`
-	PrimaryImageURL  *string    `json:"primary_image_url,omitempty"`
-	VisualHash       *string    `json:"visual_hash,omitempty"`
-	ReminderLabel    *string    `json:"reminder_label,omitempty"`
-	Tags             []string   `json:"tags,omitempty"`
-}
-
-type analyzeItemResponse struct {
-	Extraction           map[string]any   `json:"extraction"`
-	Duplicates           []map[string]any `json:"duplicates"`
-	VisualHash           string           `json:"visual_hash"`
-	SuggestedRoomID      *uuid.UUID       `json:"suggested_room_id,omitempty"`
-	SuggestedContainerID *uuid.UUID       `json:"suggested_container_id,omitempty"`
-	ImageURL             string           `json:"image_url,omitempty"`
-}
-
-type listItemResponse struct {
-	ID              uuid.UUID  `db:"id" json:"id"`
-	Name            string     `db:"name" json:"name"`
-	Type            string     `db:"type" json:"type"`
-	Body            *string    `db:"body" json:"body,omitempty"`
-	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
-	RoomID          *uuid.UUID `db:"room_id" json:"room_id,omitempty"`
-	ContainerID     *uuid.UUID `db:"container_id" json:"container_id,omitempty"`
-	LocationNote    *string    `db:"location_note" json:"location_note,omitempty"`
-	RoomName        *string    `db:"room_name" json:"room_name,omitempty"`
-	RoomIcon        *string    `db:"room_icon" json:"room_icon,omitempty"`
-	ContainerName   *string    `db:"container_name" json:"container_name,omitempty"`
-	ContainerIcon   *string    `db:"container_icon" json:"container_icon,omitempty"`
-	ExpiryDate      *time.Time `db:"expiry_date" json:"expiry_date,omitempty"`
-	IsDocument      bool       `db:"is_document" json:"is_document"`
-	DocumentType    *string    `db:"document_type" json:"document_type,omitempty"`
-	DocumentNumber  *string    `db:"document_number" json:"document_number,omitempty"`
-	Quantity        int        `db:"quantity" json:"quantity"`
-	Unit            *string    `db:"unit" json:"unit,omitempty"`
-	PrimaryImageURL *string    `db:"primary_image_url" json:"primary_image_url,omitempty"`
-	DaysUntilExpiry *int       `db:"days_until_expiry" json:"days_until_expiry,omitempty"`
-}
+type createItemRequest = itemspkg.CreateRequest
+type analyzeItemResponse = itemspkg.AnalyzeResponse
+type listItemResponse = itemspkg.ListResponse
 
 func (s *Server) handleListItems(c echo.Context) error {
 	userID := c.Get("user_id").(uuid.UUID)
@@ -437,13 +391,13 @@ func (s *Server) handleAnalyzeItem(c echo.Context) error {
 	}
 
 	if aiResp, err := s.forwardAnalyzeToAI(c, userID, fileHeader.Filename, content); err == nil {
-		duplicates, _ := s.findDuplicates(c, userID, aiResp.VisualHash, aiResp.Extraction)
+		duplicates, _ := s.itemService.FindDuplicates(userID, aiResp.VisualHash, aiResp.Extraction)
 		aiResp.Duplicates = duplicates
 		return c.JSON(http.StatusOK, aiResp)
 	}
 
 	name := strings.TrimSuffix(filepath.Base(fileHeader.Filename), filepath.Ext(fileHeader.Filename))
-	if name == "" || isGenericCameraFilename(name) {
+	if name == "" || itemspkg.IsGenericCameraFilename(name) {
 		name = "新物品"
 	}
 
@@ -461,35 +415,10 @@ func (s *Server) handleAnalyzeItem(c echo.Context) error {
 		Duplicates: []map[string]any{},
 		VisualHash: vision.PHashBytes(content),
 	}
-	duplicates, _ := s.findDuplicates(c, userID, fallback.VisualHash, fallback.Extraction)
+	duplicates, _ := s.itemService.FindDuplicates(userID, fallback.VisualHash, fallback.Extraction)
 	fallback.Duplicates = duplicates
 
 	return c.JSON(http.StatusOK, fallback)
-}
-
-func isGenericCameraFilename(name string) bool {
-	trimmed := strings.TrimSpace(strings.ToLower(name))
-	if trimmed == "" {
-		return true
-	}
-	if trimmed == "image" || trimmed == "photo" || trimmed == "img" || trimmed == "scan" || trimmed == "camera" || trimmed == "screenshot" {
-		return true
-	}
-	for _, prefix := range []string{"img_", "dsc_", "pxl_", "mvimg_", "wx_camera_", "camera_"} {
-		if strings.HasPrefix(trimmed, prefix) {
-			allDigits := true
-			for _, ch := range trimmed[len(prefix):] {
-				if ch < '0' || ch > '9' {
-					allDigits = false
-					break
-				}
-			}
-			if allDigits {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (s *Server) handleWhereIsItemPhoto(c echo.Context) error {
@@ -623,74 +552,6 @@ func (s *Server) forwardAnalyzeToAI(c echo.Context, userID uuid.UUID, filename s
 		result.Duplicates = []map[string]any{}
 	}
 	return &result, nil
-}
-
-func (s *Server) findDuplicates(c echo.Context, userID uuid.UUID, visualHash string, extraction map[string]any) ([]map[string]any, error) {
-	duplicates := make([]map[string]any, 0)
-	if strings.TrimSpace(visualHash) != "" {
-		rows := make([]struct {
-			ID            uuid.UUID `db:"id"`
-			Name          string    `db:"name"`
-			RoomName      *string   `db:"room_name"`
-			ContainerName *string   `db:"container_name"`
-		}, 0)
-		err := s.store.DB.Select(&rows, `
-			SELECT n.id, n.title as name, r.name AS room_name, ct.name AS container_name
-			FROM item_visual_fingerprints v
-			JOIN life_nodes n ON n.id = v.node_id
-			LEFT JOIN item_details i ON i.node_id = n.id
-			LEFT JOIN rooms r ON r.id = i.room_id
-			LEFT JOIN containers ct ON ct.id = i.container_id
-			WHERE v.user_id = $1 AND v.visual_hash = $2
-			ORDER BY v.created_at DESC
-			LIMIT 3
-		`, userID, strings.TrimSpace(visualHash))
-		if err == nil {
-			for _, row := range rows {
-				duplicates = append(duplicates, map[string]any{
-					"id":             row.ID,
-					"name":           row.Name,
-					"room_name":      row.RoomName,
-					"container_name": row.ContainerName,
-					"match_type":     "visual",
-				})
-			}
-		}
-	}
-
-	if len(duplicates) == 0 {
-		if name, ok := extraction["name"].(string); ok && strings.TrimSpace(name) != "" {
-			rows := make([]struct {
-				ID            uuid.UUID `db:"id"`
-				Name          string    `db:"name"`
-				RoomName      *string   `db:"room_name"`
-				ContainerName *string   `db:"container_name"`
-			}, 0)
-			err := s.store.DB.Select(&rows, `
-				SELECT n.id, n.title as name, r.name AS room_name, ct.name AS container_name
-				FROM life_nodes n
-				LEFT JOIN item_details i ON i.node_id = n.id
-				LEFT JOIN rooms r ON r.id = i.room_id
-				LEFT JOIN containers ct ON ct.id = i.container_id
-				WHERE n.user_id = $1 AND n.type = 'thing' AND n.title ILIKE '%' || $2 || '%'
-				ORDER BY n.updated_at DESC
-				LIMIT 3
-			`, userID, strings.TrimSpace(name))
-			if err == nil {
-				for _, row := range rows {
-					duplicates = append(duplicates, map[string]any{
-						"id":             row.ID,
-						"name":           row.Name,
-						"room_name":      row.RoomName,
-						"container_name": row.ContainerName,
-						"match_type":     "name",
-					})
-				}
-			}
-		}
-	}
-
-	return duplicates, nil
 }
 
 type sqlExecer interface {

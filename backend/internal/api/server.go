@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 
+	itemspkg "github.com/Nesio-app/Nesio_go/internal/items"
 	"github.com/Nesio-app/Nesio_go/internal/middleware"
 	"github.com/Nesio-app/Nesio_go/internal/storage"
 	"github.com/labstack/echo/v4"
@@ -11,8 +12,9 @@ import (
 )
 
 type Server struct {
-	e     *echo.Echo
-	store *storage.Store
+	e           *echo.Echo
+	store       *storage.Store
+	itemService *itemspkg.Service
 }
 
 func NewServer(store *storage.Store) *Server {
@@ -22,7 +24,7 @@ func NewServer(store *storage.Store) *Server {
 	e.Use(echomiddleware.Recover())
 	e.Use(echomiddleware.CORS())
 
-	s := &Server{e: e, store: store}
+	s := &Server{e: e, store: store, itemService: itemspkg.NewService(store.DB)}
 	e.Use(middleware.RateLimit(store.RDB))
 	s.registerRoutes()
 	return s
