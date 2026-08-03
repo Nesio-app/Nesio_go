@@ -72,7 +72,7 @@ interface Props {
 
 export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onOpenItems }: Props) {
   const queryClient = useQueryClient()
-  const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label']>('健康')
+  const [selectedLabel, setSelectedLabel] = useState<(typeof domains)[number]['label'] | null>(null)
   const [scheduleSection, setScheduleSection] = useState<'calendar' | 'inbox' | 'sent'>('calendar')
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'todo' | 'noDue' | 'done' | 'notification' | 'important' | 'billing' | 'review'>('all')
   const [scheduleSearch, setScheduleSearch] = useState('')
@@ -82,7 +82,8 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
   const [gmailTo, setGmailTo] = useState('')
   const [gmailSubject, setGmailSubject] = useState('')
   const [gmailBody, setGmailBody] = useState('')
-  const selectedDomain = domains.find((domain) => domain.label === selectedLabel) ?? domains[0]
+  const activeLabel = selectedLabel ?? '健康'
+  const selectedDomain = domains.find((domain) => domain.label === activeLabel)
   const { data: overviewData } = useQuery({
     queryKey: ['domains-overview'],
     queryFn: async () => {
@@ -101,9 +102,10 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
     },
   })
   const detailQuery = useQuery({
-    queryKey: ['domain-detail', selectedLabel],
+    queryKey: ['domain-detail', activeLabel],
+    enabled: Boolean(selectedLabel),
     queryFn: async () => {
-      const response = await domainsApi.detail(selectedLabel)
+      const response = await domainsApi.detail(activeLabel)
       return response.data as {
         domain: string
         tasks: Array<{ id: string; title: string; status: string; due_date?: string | null }>
@@ -113,14 +115,14 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
     },
   })
   const gmailInboxQuery = useQuery({
-    queryKey: ['gmail-inbox', selectedLabel, scheduleSection, scheduleSearch],
+    queryKey: ['gmail-inbox', activeLabel, scheduleSection, scheduleSearch],
     enabled: selectedLabel === '日程' && scheduleSection !== 'calendar',
     queryFn: async () => {
       const response = await gmail.inbox({ box: scheduleSection === 'sent' ? 'sent' : 'inbox', q: scheduleSearch || undefined })
       return response.data as { messages: Array<{ id: string; from: string; subject: string; snippet: string }> }
     },
   })
-  const selectedOverview = overviewData?.find((item) => item.label === selectedLabel)
+  const selectedOverview = selectedLabel ? overviewData?.find((item) => item.label === selectedLabel) : undefined
   const overviewByLabel = useMemo(() => {
     const map = new Map<string, { task_count: number; memory_count: number }>()
     for (const item of overviewData ?? []) {
@@ -129,33 +131,48 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
     return map
   }, [overviewData])
   const createTaskMutation = useMutation({
-    mutationFn: async () => domainsApi.createTask(selectedLabel, { title: taskTitle }),
+    mutationFn: async () => {
+      if (!selectedLabel) {
+        return
+      }
+      await domainsApi.createTask(selectedLabel, { title: taskTitle })
+    },
     onSuccess: async () => {
       setTaskTitle('')
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', activeLabel] }),
         queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['today-cards'] }),
       ])
     },
   })
   const createMemoryMutation = useMutation({
-    mutationFn: async () => domainsApi.createMemory(selectedLabel, { title: memoryTitle, body: memoryBody }),
+    mutationFn: async () => {
+      if (!selectedLabel) {
+        return
+      }
+      await domainsApi.createMemory(selectedLabel, { title: memoryTitle, body: memoryBody })
+    },
     onSuccess: async () => {
       setMemoryTitle('')
       setMemoryBody('')
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', activeLabel] }),
         queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['memories'] }),
       ])
     },
   })
   const deleteNodeMutation = useMutation({
-    mutationFn: async ({ id }: { id: string }) => domainsApi.deleteNode(selectedLabel, id),
+    mutationFn: async ({ id }: { id: string }) => {
+      if (!selectedLabel) {
+        return
+      }
+      await domainsApi.deleteNode(selectedLabel, id)
+    },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['domain-detail', selectedLabel] }),
+        queryClient.invalidateQueries({ queryKey: ['domain-detail', activeLabel] }),
         queryClient.invalidateQueries({ queryKey: ['domains-overview'] }),
       ])
     },
@@ -236,7 +253,7 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
   const renderScheduleWorkspace = () => (
     <div className="space-y-5">
       <div className="flex items-center justify-between px-1">
-        <button onClick={() => onToday?.()} className="ui-icon-btn w-10 h-10 rounded-full bg-nesio-accentSoft text-nesio-accent">
+        <button onClick={() => setSelectedLabel(null)} className="ui-icon-btn w-10 h-10 rounded-full bg-nesio-accentSoft text-nesio-accent">
           <IconArrowLeft className="w-8 h-8" />
         </button>
         <div className="type-h1 text-nesio-ink">日程</div>
@@ -356,51 +373,71 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
     return renderScheduleWorkspace()
   }
 
+  if (!selectedLabel) {
+    return (
+      <div className="px-5 pt-6 pb-6 space-y-5">
+        <div>
+          <div className="text-2xl font-bold text-nesio-ink">18 个核心领域</div>
+          <div className="text-sm text-nesio-muted mt-1">每个入口现在都有一个可落地的领域看板，而不只是空壳。</div>
+        </div>
+        <div className="grid grid-cols-4 gap-3">
+          {domains.map((d) => {
+            const overview = overviewByLabel.get(d.label)
+            return (
+              <button
+                key={d.label}
+                onClick={() => {
+                  if (d.label === '物品') {
+                    onOpenItems?.()
+                    return
+                  }
+                  setSelectedLabel(d.label)
+                }}
+                className="flex flex-col items-center gap-2 py-3 rounded-2xl active:scale-95 transition"
+              >
+                <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card bg-white">
+                  <img src={domainCoverByLabel[d.label]} alt={d.label} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
+                    <d.icon className="w-7 h-7 text-white" />
+                  </div>
+                </div>
+                <span className="text-sm text-nesio-ink font-medium">{d.label}</span>
+                <span className="type-caption text-nesio-muted">
+                  {overview ? `任务${overview.task_count} 记忆${overview.memory_count}` : d.metric}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="px-5 pt-6 pb-6 space-y-5">
-      <div>
-        <div className="text-2xl font-bold text-nesio-ink">18 个核心领域</div>
-        <div className="text-sm text-nesio-muted mt-1">每个入口现在都有一个可落地的领域看板，而不只是空壳。</div>
-      </div>
-      <div className="grid grid-cols-4 gap-3">
-        {domains.map((d) => {
-          const overview = overviewByLabel.get(d.label)
-          return (
-          <button
-            key={d.label}
-            onClick={() => {
-              setSelectedLabel(d.label)
-            }}
-            className={`flex flex-col items-center gap-2 py-3 rounded-2xl active:scale-95 transition ${selectedLabel === d.label ? 'bg-white shadow-card' : ''}`}
-          >
-            <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card bg-white">
-              <img src={domainCoverByLabel[d.label]} alt={d.label} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black/25 flex items-center justify-center">
-                <d.icon className="w-7 h-7 text-white" />
-              </div>
-            </div>
-            <span className="text-sm text-nesio-ink font-medium">{d.label}</span>
-            <span className="type-caption text-nesio-muted">
-              {overview ? `任务${overview.task_count} 记忆${overview.memory_count}` : d.metric}
-            </span>
-          </button>
-          )
-        })}
+      <div className="flex items-center justify-between px-1">
+        <button onClick={() => setSelectedLabel(null)} className="ui-icon-btn w-10 h-10 rounded-full bg-nesio-accentSoft text-nesio-accent">
+          <IconArrowLeft className="w-8 h-8" />
+        </button>
+        <div className="type-h1 text-nesio-ink">{selectedDomain?.label ?? '领域看板'}</div>
+        <button onClick={() => onToday?.()} className="ui-btn-secondary rounded-full px-4">
+          今天
+        </button>
       </div>
 
       <div className="nesio-card p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xl font-bold text-nesio-ink">{selectedDomain.label}</div>
-            <div className="text-sm text-nesio-muted mt-1">{selectedDomain.focus}</div>
+            <div className="text-xl font-bold text-nesio-ink">{selectedDomain?.label ?? ''}</div>
+            <div className="text-sm text-nesio-muted mt-1">{selectedDomain?.focus ?? ''}</div>
           </div>
           <div className="px-3 py-2 rounded-full bg-nesio-accentSoft text-sm text-nesio-accent">
-              {selectedOverview ? `任务 ${selectedOverview.task_count} · 记忆 ${selectedOverview.memory_count}` : selectedDomain.metric}
+            {selectedOverview ? `任务 ${selectedOverview.task_count} · 记忆 ${selectedOverview.memory_count}` : selectedDomain?.metric}
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3">
-          {selectedDomain.checklist.map((item) => (
+          {(selectedDomain?.checklist ?? []).map((item) => (
             <div key={item} className="rounded-2xl border border-nesio-border px-4 py-3 bg-white/70">
               <div className="text-sm font-medium text-nesio-ink">{item}</div>
             </div>
@@ -410,7 +447,7 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
         <div className="rounded-2xl bg-nesio-icon-bg px-4 py-4">
           <div className="text-sm text-nesio-muted">领域建议</div>
           <div className="text-base text-nesio-ink mt-1">
-            先从「{selectedDomain.checklist[0]}」开始，把这个领域的第一步变成今天卡片，再逐步沉淀到记忆和任务里。
+            先从「{selectedDomain?.checklist?.[0] ?? '第一步'}」开始，把这个领域的第一步变成今天卡片，再逐步沉淀到记忆和任务里。
           </div>
           {selectedOverview && Array.isArray(selectedOverview.latest_titles) && selectedOverview.latest_titles.length > 0 && (
             <div className="mt-3 space-y-1">
