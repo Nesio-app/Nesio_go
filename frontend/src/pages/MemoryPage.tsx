@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   IconSearch, IconBookmark, IconBox, IconFolder,
@@ -13,6 +13,7 @@ const sources = [
 
 interface Props {
   onBack: () => void
+  initialDomainHint?: string | null
 }
 
 interface MemoryItem {
@@ -25,10 +26,16 @@ interface MemoryItem {
   created_at: string
 }
 
-export default function MemoryPage({ onBack }: Props) {
+export default function MemoryPage({ onBack, initialDomainHint }: Props) {
   const [activeTag, setActiveTag] = useState('全部')
   const [query, setQuery] = useState('')
   const [selectedItem, setSelectedItem] = useState<MemoryItem | null>(null)
+
+  useEffect(() => {
+    if (initialDomainHint) {
+      setQuery(initialDomainHint)
+    }
+  }, [initialDomainHint])
   const { data } = useQuery({
     queryKey: ['memories'],
     queryFn: async () => {

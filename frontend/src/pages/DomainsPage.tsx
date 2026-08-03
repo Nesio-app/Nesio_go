@@ -54,7 +54,7 @@ const domainCoverByLabel: Record<string, string> = {
 
 interface Props {
   onToday?: () => void
-  onMemory?: () => void
+  onMemory?: (domainLabel?: string) => void
   onChat?: () => void
   onSettings?: () => void
   onOpenItems?: () => void
@@ -415,7 +415,7 @@ export default function DomainsPage({ onToday, onMemory, onChat, onSettings, onO
           <button onClick={() => onChat?.()} className="ui-btn-secondary">
             问问这个板块
           </button>
-          <button onClick={() => onMemory?.()} className="ui-btn-secondary">
+          <button onClick={() => onMemory?.(selectedLabel)} className="ui-btn-secondary">
             查看相关记忆
           </button>
           {selectedLabel === '运营' && (

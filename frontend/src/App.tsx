@@ -21,6 +21,7 @@ export default function App() {
   const [prevTab, setPrevTab] = useState<Tab>('today')
   const [captureRequestToken, setCaptureRequestToken] = useState(0)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [memoryDomainHint, setMemoryDomainHint] = useState<string | null>(null)
   const [capturePayload, setCapturePayload] = useState<{
     file: File
     previewUrl: string
@@ -81,7 +82,7 @@ export default function App() {
           />
         )}
         {tab === 'chat' && <ChatPage onBack={goBack} />}
-        {tab === 'memory' && <MemoryPage onBack={() => navigate('today')} />}
+        {tab === 'memory' && <MemoryPage onBack={goBack} initialDomainHint={memoryDomainHint} />}
         {tab === 'settings' && (
           <SettingsPage
             onBack={goBack}
@@ -94,7 +95,10 @@ export default function App() {
         {tab === 'domains' && (
           <DomainsPage
             onToday={() => navigate('today')}
-            onMemory={() => navigate('memory')}
+            onMemory={(domainLabel) => {
+              setMemoryDomainHint(domainLabel ?? null)
+              navigate('memory')
+            }}
             onChat={() => navigate('chat')}
             onSettings={() => navigate('settings')}
             onOpenItems={() => navigate('items')}
