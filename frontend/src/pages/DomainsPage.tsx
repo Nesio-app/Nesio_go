@@ -10,7 +10,7 @@ import {
 import { domains as domainsApi, gmail } from '../api/client'
 
 const domains = [
-  { icon: IconHeart, label: '健康', color: 'text-red-400', focus: '睡眠、恢复、体检', metric: '恢复指数 78', checklist: ['记录睡眠', '补水 2L', '安排体检提醒'] },
+  { icon: IconHeart, label: '健康', color: 'text-nesio-accent', focus: '睡眠、恢复、体检', metric: '恢复指数 78', checklist: ['记录睡眠', '补水 2L', '安排体检提醒'] },
   { icon: IconBox, label: '物品', color: 'text-nesio-accent', focus: '库存、收纳、借出', metric: '待归位 6 件', checklist: ['整理桌面', '归档快递', '盘点常用物'] },
   { icon: IconCreditCard, label: '财务', color: 'text-nesio-accent', focus: '账单、预算、现金流', metric: '本周预算剩余 61%', checklist: ['核对账单', '复盘订阅', '记录支出'] },
   { icon: IconCalendar, label: '日程', color: 'text-nesio-accent', focus: '会议、提醒、出行', metric: '今天 4 个事件', checklist: ['确认明日行程', '预留缓冲', '同步家庭日历'] },
@@ -55,7 +55,17 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
     queryKey: ['domains-overview'],
     queryFn: async () => {
       const response = await domainsApi.overview()
-      return response.data as Array<{ label: string; task_count: number; memory_count: number; urgent_count: number; latest_titles: string[] }>
+      const rows = (response.data ?? []) as Array<{
+        label: string
+        task_count: number
+        memory_count: number
+        urgent_count: number
+        latest_titles: string[] | null
+      }>
+      return rows.map((row) => ({
+        ...row,
+        latest_titles: Array.isArray(row.latest_titles) ? row.latest_titles : [],
+      }))
     },
   })
   const detailQuery = useQuery({
@@ -187,16 +197,16 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
   const renderScheduleWorkspace = () => (
     <div className="space-y-5">
       <div className="flex items-center justify-between px-1">
-        <button onClick={() => onToday?.()} className="w-16 h-16 rounded-full bg-nesio-accentSoft flex items-center justify-center text-nesio-accent">
+        <button onClick={() => onToday?.()} className="ui-icon-btn w-10 h-10 rounded-full bg-nesio-accentSoft text-nesio-accent">
           <IconArrowLeft className="w-8 h-8" />
         </button>
-        <div className="text-[54px] font-bold tracking-tight text-nesio-ink leading-none">日程</div>
-        <button onClick={() => onToday?.()} className="px-8 py-4 rounded-full border border-nesio-border bg-nesio-accentSoft text-nesio-accent text-3xl font-semibold">
+        <div className="type-h1 text-nesio-ink">日程</div>
+        <button onClick={() => onToday?.()} className="ui-btn-secondary rounded-full px-4">
           今天
         </button>
       </div>
 
-      <div className="rounded-[40px] bg-[#efe8e7] p-2 flex items-center gap-2">
+      <div className="rounded-3xl bg-nesio-accentSoft p-2 flex items-center gap-2">
         {[
           { key: 'calendar', label: '日历项', count: scheduleTabCounts.calendar },
           { key: 'inbox', label: '收件', count: scheduleTabCounts.inbox },
@@ -205,7 +215,7 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
           <button
             key={item.key}
             onClick={() => setScheduleSection(item.key as 'calendar' | 'inbox' | 'sent')}
-            className={`flex-1 rounded-[34px] px-6 py-5 text-[32px] font-semibold transition ${scheduleSection === item.key ? 'bg-white text-nesio-accent shadow-card' : 'text-slate-500'}`}
+            className={`flex-1 rounded-2xl px-4 py-3 type-title transition ${scheduleSection === item.key ? 'bg-white text-nesio-accent shadow-card' : 'text-nesio-muted'}`}
           >
             {item.label} {item.count}
           </button>
@@ -216,7 +226,7 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
         value={scheduleSearch}
         onChange={(e) => setScheduleSearch(e.target.value)}
         placeholder={scheduleSection === 'calendar' ? '搜日程:标题、地点、日历名..' : '搜邮件:标题、发件人、正文..'}
-        className="w-full rounded-[36px] border border-nesio-border bg-white px-8 py-6 text-[30px] text-slate-400 outline-none"
+        className="ui-input"
       />
 
       <div className="flex gap-4 overflow-x-auto pb-1 scrollbar-hide">
@@ -238,64 +248,64 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
           <button
             key={chip.key}
             onClick={() => setScheduleFilter(chip.key as typeof scheduleFilter)}
-            className={`whitespace-nowrap rounded-full border px-8 py-4 text-[28px] transition ${scheduleFilter === chip.key ? 'border-[#e4c5bf] bg-[#f4e9e7] text-nesio-accent' : 'border-nesio-border bg-white text-slate-500'}`}
+            className={`whitespace-nowrap ui-chip transition ${scheduleFilter === chip.key ? 'ui-chip-active' : ''}`}
           >
             {chip.label} {chip.count}
           </button>
         ))}
         {scheduleSection === 'sent' && (
-          <button className="rounded-full border border-dashed border-[#e4c5bf] px-7 py-4 text-[32px] text-nesio-accent">
+          <button className="ui-chip border-dashed text-nesio-accent">
             <IconPlus className="w-7 h-7 inline-block" />
           </button>
         )}
       </div>
 
       {scheduleSection === 'sent' && (
-        <button className="w-full rounded-[34px] bg-[#c9837b] py-6 text-[34px] font-semibold text-white" onClick={() => gmailTo || gmailSubject || gmailBody ? gmailSendMutation.mutate() : null}>
+        <button className="ui-btn-primary w-full" onClick={() => gmailTo || gmailSubject || gmailBody ? gmailSendMutation.mutate() : null}>
           写一封
         </button>
       )}
 
       {scheduleSection === 'sent' && (
-        <div className="rounded-[28px] bg-white p-5 shadow-card space-y-3">
-          <input value={gmailTo} onChange={(e) => setGmailTo(e.target.value)} placeholder="发给谁" className="w-full rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
-          <input value={gmailSubject} onChange={(e) => setGmailSubject(e.target.value)} placeholder="主题" className="w-full rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
-          <textarea value={gmailBody} onChange={(e) => setGmailBody(e.target.value)} placeholder="正文" className="w-full min-h-28 rounded-2xl bg-[#faf8f7] px-4 py-3 text-base outline-none" />
+        <div className="ui-card-plain p-5 space-y-3">
+          <input value={gmailTo} onChange={(e) => setGmailTo(e.target.value)} placeholder="发给谁" className="ui-input bg-nesio-bg" />
+          <input value={gmailSubject} onChange={(e) => setGmailSubject(e.target.value)} placeholder="主题" className="ui-input bg-nesio-bg" />
+          <textarea value={gmailBody} onChange={(e) => setGmailBody(e.target.value)} placeholder="正文" className="ui-input min-h-28 bg-nesio-bg" />
         </div>
       )}
 
       <div className="space-y-4">
         {scheduleSection === 'calendar' && scheduleCards.map((item) => (
-          <div key={item.id} className="rounded-[28px] bg-white p-6 shadow-card">
+          <div key={item.id} className="ui-card-plain p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <div className="text-[30px] font-bold text-nesio-ink truncate">{item.title}</div>
-                <div className="mt-5 flex items-center gap-3 text-[20px] text-slate-500">
+                <div className="type-title text-nesio-ink truncate">{item.title}</div>
+                <div className="mt-3 flex items-center gap-2 type-caption text-nesio-muted">
                   <span>{item.meta}</span>
-                  {item.section === 'important' && <span className="rounded-full bg-[#dfeee6] px-4 py-1 text-[#6c9b80]">提醒</span>}
+                  {item.section === 'important' && <span className="rounded-full bg-nesio-accentSoft px-3 py-1 text-nesio-accent">提醒</span>}
                 </div>
-                <div className="mt-4 text-[22px] text-slate-500 truncate">{item.subtitle}</div>
+                <div className="mt-2 type-caption text-nesio-muted truncate">{item.subtitle}</div>
               </div>
-              <div className="text-right text-[28px] text-slate-500 whitespace-pre-line">{item.date}</div>
+              <div className="text-right type-caption text-nesio-muted whitespace-pre-line">{item.date}</div>
             </div>
           </div>
         ))}
 
         {scheduleSection !== 'calendar' && scheduleMailCards.map((message) => (
-          <div key={message.id} className="rounded-[28px] bg-white p-6 shadow-card">
+          <div key={message.id} className="ui-card-plain p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <div className="text-[30px] font-bold text-nesio-ink truncate">{message.subject || '(无主题)'}</div>
-                <div className="mt-4 text-[22px] text-slate-500 truncate">{scheduleSection === 'sent' ? `发给 ${message.from}` : message.from}</div>
-                <div className="mt-4 text-[22px] text-slate-400 truncate">{message.snippet}</div>
+                <div className="type-title text-nesio-ink truncate">{message.subject || '(无主题)'}</div>
+                <div className="mt-2 type-caption text-nesio-muted truncate">{scheduleSection === 'sent' ? `发给 ${message.from}` : message.from}</div>
+                <div className="mt-2 type-caption text-nesio-muted truncate">{message.snippet}</div>
               </div>
-              <div className="text-right text-[28px] text-slate-500">8月2日</div>
+              <div className="text-right type-caption text-nesio-muted">8月2日</div>
             </div>
           </div>
         ))}
 
         {scheduleSection !== 'calendar' && gmailInboxQuery.isError && (
-          <div className="rounded-[28px] bg-white p-6 text-[24px] text-red-500 shadow-card">
+          <div className="ui-card-plain p-5 type-body text-nesio-accent">
             还没有可用的 Gmail connector。先为 `gmail` 写入可用的 `access_token`。
           </div>
         )}
@@ -352,7 +362,7 @@ export default function DomainsPage({ onToday, onMemory, onChat }: Props) {
           <div className="text-base text-nesio-ink mt-1">
             先从「{selectedDomain.checklist[0]}」开始，把这个领域的第一步变成今天卡片，再逐步沉淀到记忆和任务里。
           </div>
-          {selectedOverview && selectedOverview.latest_titles.length > 0 && (
+          {selectedOverview && Array.isArray(selectedOverview.latest_titles) && selectedOverview.latest_titles.length > 0 && (
             <div className="mt-3 space-y-1">
               {selectedOverview.latest_titles.map((title) => (
                 <div key={title} className="text-sm text-nesio-muted">• {title}</div>
