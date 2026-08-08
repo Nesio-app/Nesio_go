@@ -104,6 +104,17 @@ CREATE TABLE IF NOT EXISTS life_nodes (
 CREATE INDEX IF NOT EXISTS idx_nodes_user_status ON life_nodes(user_id, status, due_date);
 CREATE INDEX IF NOT EXISTS idx_nodes_user_domain ON life_nodes(user_id, domain);
 
+CREATE TABLE IF NOT EXISTS assets (
+	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+	filename text NOT NULL,
+	content_type text NOT NULL,
+	byte_size bigint NOT NULL CHECK (byte_size > 0 AND byte_size <= 15728640),
+	data bytea NOT NULL,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_assets_user_created ON assets(user_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS rooms (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	user_id uuid REFERENCES users(id) ON DELETE CASCADE,

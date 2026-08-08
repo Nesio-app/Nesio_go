@@ -16,6 +16,12 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
   const method = (config.method ?? 'get').toLowerCase()
   if (!navigator.onLine && ['post', 'patch', 'put', 'delete'].includes(method)) {
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      return Promise.reject({
+        offlineUploadUnsupported: true,
+        message: 'File uploads are not queued until durable offline asset storage is available.',
+      })
+    }
     enqueueWriteRequest({
       url: `${config.baseURL ?? ''}${config.url ?? ''}`,
       method: method.toUpperCase(),
@@ -137,6 +143,18 @@ export const containers = {
   create: (data: { name: string; icon?: string; room_id?: string | null; sort_order?: number }) => api.post('/containers', data),
   update: (id: string, data: { name?: string; icon?: string; room_id?: string | null; sort_order?: number }) => api.patch(`/containers/${id}`, data),
   remove: (id: string) => api.delete(`/containers/${id}`),
+}
+
+export const assets = {
+  upload: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<{ id: string; url: string }>('/assets', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  download: (url: string) =>
+    api.get<Blob>(url, { responseType: 'blob' }),
 }
 
 export const items = {

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { containers, items, rooms } from '../api/client'
+import { assets, containers, items, rooms } from '../api/client'
 
 interface Props {
   itemId: string
@@ -53,6 +53,7 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
   const [documentTypeDraft, setDocumentTypeDraft] = useState('')
   const [documentNumberDraft, setDocumentNumberDraft] = useState('')
   const [quantityDraft, setQuantityDraft] = useState(1)
+  const [imageSource, setImageSource] = useState<string | null>(null)
 
   const itemQuery = useQuery({
     queryKey: ['item-detail', itemId],
@@ -125,6 +126,42 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
   })
 
   const item = itemQuery.data
+  const primaryImageURL = item?.primary_image_url
+
+  useEffect(() => {
+    if (!primaryImageURL) {
+      setImageSource(null)
+      return
+    }
+    if (/^(?:blob:|data:|https?:)/.test(primaryImageURL)) {
+      setImageSource(primaryImageURL)
+      return
+    }
+
+    let cancelled = false
+    let objectURL: string | null = null
+    void assets.download(primaryImageURL)
+      .then((response) => {
+        objectURL = URL.createObjectURL(response.data)
+        if (cancelled) {
+          URL.revokeObjectURL(objectURL)
+          return
+        }
+        setImageSource(objectURL)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setImageSource(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      if (objectURL) {
+        URL.revokeObjectURL(objectURL)
+      }
+    }
+  }, [primaryImageURL])
 
   const locationText = useMemo(() => {
     if (!item) {
@@ -175,8 +212,8 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
         </button>
       </div>
 
-      {item.primary_image_url && (
-        <img src={item.primary_image_url} alt={item.name} className="w-full h-52 object-cover rounded-2xl" />
+      {imageSource && (
+        <img src={imageSource} alt={item.name} className="w-full h-52 object-cover rounded-2xl" />
       )}
 
       <div className="ui-card p-4 space-y-3">
@@ -282,8 +319,8 @@ export default function ItemDetailPage({ itemId, onBack }: Props) {
             </div>
             <article className="px-5 py-6 space-y-5">
               <h3 className="text-3xl font-semibold text-nesio-ink break-words">{item.name}</h3>
-              {item.primary_image_url && (
-                <img src={item.primary_image_url} alt={item.name} className="w-full rounded-2xl object-cover" />
+              {imageSource && (
+                <img src={imageSource} alt={item.name} className="w-full rounded-2xl object-cover" />
               )}
               <div className="type-body text-nesio-ink whitespace-pre-wrap leading-8 break-words">
                 {item.body?.trim() || '这条物品没有正文备注。'}
