@@ -251,6 +251,19 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
     },
   })
 
+  const dismissCardMutation = useMutation({
+    mutationFn: async (cardId: string) => {
+      await today.dismiss(cardId)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['today-cards'] })
+    },
+    onError: () => {
+      setSaveMessage('暂时无法隐藏这条内容，请稍后重试。')
+      setSaveTone('error')
+    },
+  })
+
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop()
@@ -570,7 +583,13 @@ export default function TodayPage({ onMemory, onSettings, onChat }: Props) {
                 <div className="type-title text-nesio-ink mt-0.5">{card.title}</div>
                 {safeBody && <div className="type-body text-nesio-muted mt-1">{safeBody}</div>}
               </div>
-              <button className="w-6 h-6 rounded-full bg-nesio-icon-bg flex items-center justify-center text-nesio-muted active:scale-90 transition">
+              <button
+                type="button"
+                onClick={() => dismissCardMutation.mutate(card.id)}
+                disabled={dismissCardMutation.isPending}
+                aria-label={`隐藏：${card.title}`}
+                className="w-6 h-6 rounded-full bg-nesio-icon-bg flex items-center justify-center text-nesio-muted active:scale-90 transition disabled:opacity-50"
+              >
                 <IconX className="w-3 h-3" />
               </button>
             </div>

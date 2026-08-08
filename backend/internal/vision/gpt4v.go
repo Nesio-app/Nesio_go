@@ -1,5 +1,4 @@
 package vision
-package vision
 
 import "strings"
 

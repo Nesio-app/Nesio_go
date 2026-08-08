@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { containers, items, rooms } from '../api/client'
+import { assets, containers, items, rooms } from '../api/client'
 import DuplicateAlert from '../components/DuplicateAlert'
 import LocationPicker from '../components/LocationPicker'
 
@@ -11,12 +11,13 @@ interface AnalyzeResult {
 }
 
 interface Props {
+  file: File
   previewUrl: string
   result: AnalyzeResult
   onClose: () => void
 }
 
-export default function RecognitionResultPage({ previewUrl, result, onClose }: Props) {
+export default function RecognitionResultPage({ file, previewUrl, result, onClose }: Props) {
   const queryClient = useQueryClient()
   const [name, setName] = useState(String(result.extraction?.name ?? ''))
   const [description, setDescription] = useState(String(result.extraction?.description ?? ''))
@@ -24,8 +25,9 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
   const [containerId, setContainerId] = useState<string>('')
   const [price, setPrice] = useState('')
   const [expiryDate, setExpiryDate] = useState(String(result.extraction?.expiry_date ?? ''))
-  const [reminderLabel, setReminderLabel] = useState('服药提醒')
+  const [reminderLabel, setReminderLabel] = useState('')
   const [shouldCreateNew, setShouldCreateNew] = useState(result.duplicates.length === 0)
+  const [saveError, setSaveError] = useState('')
 
   const roomsQuery = useQuery({
     queryKey: ['rooms'],
@@ -65,16 +67,26 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
       visual_hash: result.visual_hash,
       reminder_label: reminderLabel || undefined,
       tags: Array.isArray(extraction.tags) ? extraction.tags : ['拍照识别'],
-      primary_image_url: previewUrl,
       is_document: isDocument,
       document_type: documentType,
       document_number: documentNumber,
     }
-  }, [containerId, description, expiryDate, name, previewUrl, reminderLabel, result.extraction, result.visual_hash, roomId])
+  }, [containerId, description, expiryDate, name, reminderLabel, result.extraction, result.visual_hash, roomId])
+
+  const createItemWithUploadedImage = async () => {
+    const uploadedAsset = await assets.upload(file)
+    return items.create({
+      ...createPayload,
+      primary_image_url: uploadedAsset.data.url,
+    })
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await items.create(createPayload)
+      await createItemWithUploadedImage()
+    },
+    onMutate: () => {
+      setSaveError('')
     },
     onSuccess: async () => {
       await Promise.all([
@@ -83,15 +95,21 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
         queryClient.invalidateQueries({ queryKey: ['items-documents'] }),
       ])
       onClose()
+    },
+    onError: () => {
+      setSaveError('图片或物品保存失败，请检查网络后重试。')
     },
   })
 
   const mergeDuplicateMutation = useMutation({
     mutationFn: async (targetItemId: string) => {
-      await items.create(createPayload).then((res) => res.data as { id: string })
+      await createItemWithUploadedImage().then((res) => res.data as { id: string })
         .then(async (created) => {
           await items.duplicate(created.id, targetItemId, 1)
         })
+    },
+    onMutate: () => {
+      setSaveError('')
     },
     onSuccess: async () => {
       await Promise.all([
@@ -100,6 +118,9 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
         queryClient.invalidateQueries({ queryKey: ['items-documents'] }),
       ])
       onClose()
+    },
+    onError: () => {
+      setSaveError('图片或重复物品合并失败，请检查网络后重试。')
     },
   })
 
@@ -176,6 +197,7 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
         >
           {saveMutation.isPending ? '保存中...' : shouldCreateNew ? '保存物品' : '请选择“更新现有记录”或“这是新的”'}
         </button>
+        {saveError && <p className="ui-state-error">{saveError}</p>}
       </div>
     </div>
   )

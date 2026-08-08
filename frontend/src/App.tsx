@@ -191,6 +191,7 @@ export default function App() {
         )}
         {tab === 'recognition' && capturePayload && (
           <RecognitionResultPage
+            file={capturePayload.file}
             previewUrl={capturePayload.previewUrl}
             result={capturePayload.result}
             onClose={() => {

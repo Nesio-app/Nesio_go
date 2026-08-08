@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { vision, items } from '../api/client'
+import { assets, vision, items } from '../api/client'
 import CameraSheet from '../components/CameraSheet'
 import CaptureBar from '../components/CaptureBar'
 
@@ -41,6 +41,8 @@ export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props)
   const [selection, setSelection] = useState<CropRect | null>(null)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isDirectSaving, setIsDirectSaving] = useState(false)
+  const [directSaveError, setDirectSaveError] = useState('')
 
   const analyzeMutation = useMutation({
     mutationFn: async (source: File) => {
@@ -73,6 +75,7 @@ export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props)
     setSelection(null)
     setDragStart(null)
     setIsDragging(false)
+    setDirectSaveError('')
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -91,6 +94,7 @@ export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props)
     setSelection(null)
     setDragStart(null)
     setIsDragging(false)
+    setDirectSaveError('')
   }
 
   const getRelativePoint = (clientX: number, clientY: number) => {
@@ -234,12 +238,25 @@ export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props)
   }
 
   const directSave = async () => {
-    if (!file) {
+    if (!file || isDirectSaving) {
       return
     }
     const defaultName = filename.replace(/\.[^/.]+$/, '') || '新物品'
-    await items.create({ name: defaultName, tags: ['拍照', '直接保存'] })
-    onClose()
+    setIsDirectSaving(true)
+    setDirectSaveError('')
+    try {
+      const uploadedAsset = await assets.upload(file)
+      await items.create({
+        name: defaultName,
+        primary_image_url: uploadedAsset.data.url,
+        tags: ['拍照', '直接保存'],
+      })
+      onClose()
+    } catch {
+      setDirectSaveError('照片保存失败，请检查网络后重试。')
+    } finally {
+      setIsDirectSaving(false)
+    }
   }
 
   return (
@@ -298,11 +315,15 @@ export default function CapturePage({ onClose, initialFile, onAnalyzed }: Props)
             </div>
           </div>
 
+          <div className="px-5">
+            {directSaveError && <p className="ui-state-error">{directSaveError}</p>}
+          </div>
           <CaptureBar
             onDirectSave={directSave}
             onAnalyze={runAnalyze}
             onRetake={resetFile}
             analyzing={analyzeMutation.isPending}
+            saving={isDirectSaving}
             disabled={!file}
           />
         </>

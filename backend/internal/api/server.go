@@ -58,6 +58,10 @@ func (s *Server) registerRoutes() {
 	api := s.e.Group("/api/v1")
 	api.Use(middleware.JWTAuth)
 
+	// Authenticated asset storage
+	api.POST("/assets", s.handleUploadAsset)
+	api.GET("/assets/:id", s.handleGetAsset)
+
 	// Today
 	api.GET("/today", s.handleGetToday)
 	api.POST("/cards/:id/dismiss", s.handleDismissCard)
