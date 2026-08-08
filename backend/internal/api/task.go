@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Nesio-app/Nesio_go/internal/models"
@@ -32,7 +33,6 @@ func (s *Server) handleCreateTask(c echo.Context) error {
 	}
 	return s.createTaskForUser(c, userID, req)
 }
-
 
 func (s *Server) createTaskForUser(c echo.Context, userID uuid.UUID, req CreateTaskRequest) error {
 	tags := pq.StringArray(req.Tags)
@@ -83,12 +83,35 @@ func (s *Server) handleUpdateTask(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
-
-	if req.Status != nil {
-		_, err = s.store.DB.Exec("UPDATE life_nodes SET status = $1, updated_at = now() WHERE id = $2 AND user_id = $3", *req.Status, id, userID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	if req.Title != nil {
+		trimmedTitle := strings.TrimSpace(*req.Title)
+		if trimmedTitle == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "title must not be empty")
 		}
+		req.Title = &trimmedTitle
+	}
+
+	if req.Status == nil && req.Title == nil && req.DueDate == nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "at least one field is required")
+	}
+
+	result, err := s.store.DB.Exec(`
+		UPDATE life_nodes
+		SET title = COALESCE($1, title),
+		    status = COALESCE($2, status),
+		    due_date = COALESCE($3, due_date),
+		    updated_at = now()
+		WHERE id = $4 AND user_id = $5 AND type = 'task'
+	`, req.Title, req.Status, req.DueDate, id, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	if updated == 0 {
+		return echo.NewHTTPError(http.StatusNotFound, "task not found")
 	}
 
 	return c.NoContent(http.StatusNoContent)
