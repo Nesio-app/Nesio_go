@@ -103,6 +103,9 @@ func supportedAssetContentType(declared string, data []byte) string {
 	if isSupportedAssetContentType(contentType) {
 		return contentType
 	}
+	if strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "text/") {
+		return ""
+	}
 
 	contentType = strings.ToLower(strings.TrimSpace(strings.Split(http.DetectContentType(data), ";")[0]))
 	if isSupportedAssetContentType(contentType) {
