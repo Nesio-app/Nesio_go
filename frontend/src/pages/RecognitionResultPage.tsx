@@ -24,7 +24,7 @@ export default function RecognitionResultPage({ previewUrl, result, onClose }: P
   const [containerId, setContainerId] = useState<string>('')
   const [price, setPrice] = useState('')
   const [expiryDate, setExpiryDate] = useState(String(result.extraction?.expiry_date ?? ''))
-  const [reminderLabel, setReminderLabel] = useState('服药提醒')
+  const [reminderLabel, setReminderLabel] = useState('')
   const [shouldCreateNew, setShouldCreateNew] = useState(result.duplicates.length === 0)
 
   const roomsQuery = useQuery({

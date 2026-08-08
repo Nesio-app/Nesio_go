@@ -55,9 +55,7 @@ func (s *Server) handleAsk(c echo.Context) error {
 	}
 
 	payload, _ := json.Marshal(map[string]any{
-		"message": contextText,
-		"tier":    "deep",
-		"mode":    "chat",
+		"question": contextText,
 	})
 
 	httpReq, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, aiURL+"/ask", bytes.NewReader(payload))
