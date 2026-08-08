@@ -23,6 +23,10 @@ type askRequest struct {
 	UserID   string `json:"user_id,omitempty"`
 }
 
+type askServiceRequest struct {
+	Question string `json:"question"`
+}
+
 type extractionAnalyzeRequest struct {
 	Text string `json:"text"`
 }
@@ -54,9 +58,10 @@ func (s *Server) handleAsk(c echo.Context) error {
 		aiURL = "http://ai-service:8000"
 	}
 
-	payload, _ := json.Marshal(map[string]any{
-		"question": contextText,
-	})
+	payload, err := json.Marshal(askServiceRequest{Question: contextText})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
 	httpReq, err := http.NewRequestWithContext(c.Request().Context(), http.MethodPost, aiURL+"/ask", bytes.NewReader(payload))
 	if err != nil {

@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestSelectTierContract(t *testing.T) {
   tests := []struct {
@@ -22,4 +25,22 @@ func TestSelectTierContract(t *testing.T) {
       }
     })
   }
+}
+
+func TestAskServiceRequestContract(t *testing.T) {
+	payload, err := json.Marshal(askServiceRequest{Question: "Where is my passport?"})
+	if err != nil {
+		t.Fatalf("marshal ask request: %v", err)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(payload, &body); err != nil {
+		t.Fatalf("unmarshal ask request: %v", err)
+	}
+	if got, want := body["question"], "Where is my passport?"; got != want {
+		t.Fatalf("question = %q, want %q", got, want)
+	}
+	if _, ok := body["message"]; ok {
+		t.Fatal("ask payload must not use the chat-only message field")
+	}
 }
