@@ -44,8 +44,14 @@ func (w *Worker) runExpiryReminderJob(ctx context.Context) error {
 		`, item.UserID, item.NodeID, title, now)
 		_, _ = w.store.DB.ExecContext(ctx, `
 			INSERT INTO today_cards (user_id, local_day, slot, node_id, title, body, severity, fingerprints)
-			VALUES ($1, $2, 'guidance', $3, $4, $5, 2, $6)
-		`, item.UserID, now.Format("2006-01-02"), item.NodeID, title, body, []string{"item-expiry:" + item.NodeID.String()})
+			SELECT $1, $2, 'guidance', $3, $4, $5, 2, ARRAY[$6::text]
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM today_cards
+				WHERE user_id = $1
+				  AND fingerprints @> ARRAY[$6::text]
+			)
+		`, item.UserID, now.Format("2006-01-02"), item.NodeID, title, body, "item-expiry:"+item.NodeID.String())
 	}
 
 	return nil

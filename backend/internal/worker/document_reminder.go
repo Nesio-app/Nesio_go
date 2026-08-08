@@ -44,8 +44,14 @@ func (w *Worker) runDocumentReminderJob(ctx context.Context) error {
 		`, item.UserID, item.NodeID, title, now)
 		_, _ = w.store.DB.ExecContext(ctx, `
 			INSERT INTO today_cards (user_id, local_day, slot, node_id, title, body, severity, fingerprints)
-			VALUES ($1, $2, 'pinned', $3, $4, $5, 3, $6)
-		`, item.UserID, now.Format("2006-01-02"), item.NodeID, title, body, []string{"item-document:" + item.NodeID.String()})
+			SELECT $1, $2, 'pinned', $3, $4, $5, 3, ARRAY[$6::text]
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM today_cards
+				WHERE user_id = $1
+				  AND fingerprints @> ARRAY[$6::text]
+			)
+		`, item.UserID, now.Format("2006-01-02"), item.NodeID, title, body, "item-document:"+item.NodeID.String())
 	}
 
 	return nil
